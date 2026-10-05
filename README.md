@@ -83,14 +83,15 @@ curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/inst
 
 ## Windows 安装
 
-以管理员身份运行 PowerShell：
+在普通 PowerShell 中执行下面的命令，脚本会自动弹出管理员授权：
 
 ```powershell
 $script = Join-Path $env:TEMP "frpw-install.ps1"
-Invoke-WebRequest `
-  "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.ps1" `
+Invoke-RestMethod `
+  -Uri "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.ps1?ref=v1.0.0" `
+  -Headers @{ Accept = "application/vnd.github.raw+json"; "User-Agent" = "frpw-installer" } `
   -OutFile $script
-& $script -Component server
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Component server
 ```
 
 把 `server` 改为 `agent` 或 `node` 可安装对应组件。

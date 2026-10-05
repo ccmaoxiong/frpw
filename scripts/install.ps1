@@ -1,11 +1,18 @@
 param(
     [ValidateSet("server", "agent", "node")]
     [string]$Component = $(if ($env:FRPW_COMPONENT) { $env:FRPW_COMPONENT } else { "server" }),
-    [string]$Version = $(if ($env:FRPW_VERSION) { $env:FRPW_VERSION } else { "v1.0.0" })
+    [string]$Version = $(if ($env:FRPW_VERSION) { $env:FRPW_VERSION } else { "v1.0.0" }),
+    [switch]$Elevated
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+}
+catch {
+    # Older hosts may not expose the TLS 1.2 enum; the default protocol remains available.
+}
 
 if (-not $Version.StartsWith("v")) {
     $Version = "v$Version"
@@ -52,6 +59,18 @@ function Get-Headers([string]$Accept) {
     return $headers
 }
 
+function Invoke-WebDownload([string]$Uri, [string]$Destination, [hashtable]$Headers) {
+    $parameters = @{
+        Uri = $Uri
+        Headers = $Headers
+        OutFile = $Destination
+    }
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        $parameters.UseBasicParsing = $true
+    }
+    Invoke-WebRequest @parameters
+}
+
 function Get-Release([string]$ReleaseVersion) {
     $uri = "$ApiBase/repos/$Repo/releases/tags/$ReleaseVersion"
     return Invoke-RestMethod -Method Get -Uri $uri -Headers (Get-Headers "application/vnd.github+json")
@@ -59,14 +78,14 @@ function Get-Release([string]$ReleaseVersion) {
 
 function Get-Asset([string]$AssetName, [string]$Destination, $Release) {
     if ($DownloadBase) {
-        Invoke-WebRequest -Uri "$DownloadBase/$AssetName" -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
+        Invoke-WebDownload "$DownloadBase/$AssetName" $Destination (Get-Headers "application/octet-stream")
         return
     }
     if ($Release) {
         $asset = $Release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
         if ($asset) {
             try {
-                Invoke-WebRequest -Uri $asset.url -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
+                Invoke-WebDownload $asset.url $Destination (Get-Headers "application/octet-stream")
                 return
             }
             catch {
@@ -74,7 +93,7 @@ function Get-Asset([string]$AssetName, [string]$Destination, $Release) {
             }
         }
     }
-    Invoke-WebRequest -Uri "$GithubDownloadBase/$Repo/releases/download/$Version/$AssetName" -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
+    Invoke-WebDownload "$GithubDownloadBase/$Repo/releases/download/$Version/$AssetName" $Destination (Get-Headers "application/octet-stream")
 }
 
 function Get-Sha256([string]$Path) {
@@ -132,13 +151,16 @@ function Install-ServiceTask([string]$Name, [string]$Binary, [string]$Arguments)
     & schtasks.exe /Run /TN $Name | Out-Null
 }
 
-function Add-FirewallRule([string]$Name, [int[]]$Ports) {
+function Add-FirewallRule([string]$Name, [string[]]$Ports) {
     if (-not (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue)) {
         return
     }
-    foreach ($port in $Ports) {
-        if (-not (Get-NetFirewallRule -DisplayName "$Name $port" -ErrorAction SilentlyContinue)) {
-            New-NetFirewallRule -DisplayName "$Name $port" -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port | Out-Null
+    foreach ($protocol in @("TCP", "UDP")) {
+        foreach ($port in $Ports) {
+            $displayName = "$Name $protocol $port"
+            if (-not (Get-NetFirewallRule -DisplayName $displayName -ErrorAction SilentlyContinue)) {
+                New-NetFirewallRule -DisplayName $displayName -Direction Inbound -Action Allow -Protocol $protocol -LocalPort $port | Out-Null
+            }
         }
     }
 }
@@ -211,7 +233,7 @@ payment:
     Copy-Item -LiteralPath (Join-Path $TempDir "SHA256SUMS") -Destination (Join-Path $clientDir "SHA256SUMS") -Force
 
     Install-ServiceTask "FRPW Server" (Join-Path $installDir "frpw-server.exe") "-config `"$configFile`""
-    Add-FirewallRule "FRPW Server" @($apiPort, $agentPort, $publicHttpPort)
+    Add-FirewallRule "FRPW Server" @("$apiPort", "$agentPort", "$publicHttpPort", "20000-20999")
     Write-Step "FRPW server $Version installed"
     Write-Step "user console: http://<server-ip>:$apiPort"
     Write-Step "admin console: http://<server-ip>:$apiPort$adminPath"
@@ -302,12 +324,36 @@ log_level: info
     }
 
     Install-ServiceTask "FRPW Node" (Join-Path $installDir "frpw-node.exe") "-config `"$configFile`""
-    Add-FirewallRule "FRPW Node" @($agentPort, $httpPort)
+    Add-FirewallRule "FRPW Node" @("$agentPort", "$httpPort", "20000-20999")
     Write-Step "FRPW remote node $Version installed"
 }
 
 if (-not (Test-Administrator)) {
-    Stop-Install "run this installer from an elevated PowerShell window"
+    if ($Elevated) {
+        Stop-Install "administrator rights were not granted"
+    }
+    $scriptPath = $PSCommandPath
+    if (-not $scriptPath) {
+        $scriptPath = $MyInvocation.MyCommand.Path
+    }
+    if (-not $scriptPath) {
+        Stop-Install "download install.ps1 to a file before running it"
+    }
+    try {
+        $arguments = @(
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-File", "`"$scriptPath`"",
+            "-Component", $Component,
+            "-Version", $Version,
+            "-Elevated"
+        )
+        $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList $arguments -Wait -PassThru
+        exit $process.ExitCode
+    }
+    catch {
+        Stop-Install "administrator permission was not granted: $($_.Exception.Message)"
+    }
 }
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("frpw-install-" + [Guid]::NewGuid().ToString("N"))
