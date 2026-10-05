@@ -34,9 +34,10 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frp
 ### 国内镜像一键安装
 
 国内网络推荐使用专用安装器。下面的命令会依次尝试 jsDelivr、gh-proxy、ghfast.top
-和 GitHub raw，哪个能通就用哪个（强制 IPv4，避开国内服务器 IPv6 出口不通导致的握手超时）；安装器内部还会在 `ghfast.top`、`gh-proxy.com` 和
-`ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`。入口使用 commit 哈希而
-不是 tag，避免 Git CDN 对 tag 的解析缓存拿到旧脚本：
+和 GitHub raw，哪个能通就用哪个，并强制 IPv4（国内服务器 IPv6 出口不通时 curl
+会卡在握手并报 `SSL connection timeout`）；安装器内部还会在 `ghfast.top`、
+`gh-proxy.com` 和 `ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`。
+入口使用 commit 哈希而不是 tag，避免 Git CDN 对 tag 的解析缓存拿到旧脚本：
 
 ```bash
 rm -f /tmp/frpw-install-cn.sh; for u in "https://cdn.jsdelivr.net/gh/ccmaoxiong/frpw@af01b24842a903f768eb6b1cca1575d3024716bf/scripts/install-cn.sh" "https://fastly.jsdelivr.net/gh/ccmaoxiong/frpw@af01b24842a903f768eb6b1cca1575d3024716bf/scripts/install-cn.sh" "https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh" "https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh" "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh"; do echo "trying $u"; curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "$u" && break; done; test -s /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server || echo "所有入口均不可用，请改用标准安装器或设置 FRPW_CN_MIRROR_BASE_URL"
