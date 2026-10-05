@@ -12,6 +12,7 @@
 - Added automatic fallback from GitHub API asset downloads to public Release URLs.
 - Hardened checksum manifest parsing and added retry for invalid checksum downloads.
 - Added automatic Windows elevation, execution-policy bypass, and PowerShell 5.1 download compatibility.
+- Fixed JWT secret generation on Windows PowerShell 5.1/.NET Framework.
 - Added Windows firewall rules for TCP/UDP tunnel port pools.
 - Unified server and node build-time version reporting.
 - Added repository licensing, release workflow, and release metadata.

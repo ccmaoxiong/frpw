@@ -133,6 +133,18 @@ function Write-Utf8File([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $encoding)
 }
 
+function New-RandomHexSecret([int]$ByteCount = 32) {
+    $bytes = New-Object byte[] $ByteCount
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    }
+    finally {
+        $rng.Dispose()
+    }
+    return ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+}
+
 function Install-ServiceTask([string]$Name, [string]$Binary, [string]$Arguments) {
     if (Get-Command Register-ScheduledTask -ErrorAction SilentlyContinue) {
         if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
@@ -185,7 +197,7 @@ function Install-Server($Release, [string]$TempDir) {
     Copy-Item -LiteralPath $assetPath -Destination (Join-Path $installDir "frpw-server.exe") -Force
 
     if (-not (Test-Path $configFile)) {
-        $jwtSecret = if ($env:FRPW_JWT_SECRET) { $env:FRPW_JWT_SECRET } else { ([BitConverter]::ToString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)) -replace '-', '').ToLowerInvariant() }
+        $jwtSecret = if ($env:FRPW_JWT_SECRET) { $env:FRPW_JWT_SECRET } else { New-RandomHexSecret 32 }
         $config = @"
 data_dir: "$($dataDir.Replace('\', '/'))"
 api_addr: ":$apiPort"
