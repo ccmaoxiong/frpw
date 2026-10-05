@@ -301,11 +301,11 @@ download_client_catalog() {
     client_dir="$DATA_DIR/client-releases"
     install -d -m 0755 "$client_dir"
     for asset_name in \
-        "frpw-agent-$FRPW_VERSION-linux-amd64" \
-        "frpw-agent-$FRPW_VERSION-linux-arm64" \
-        "frpw-agent-$FRPW_VERSION-windows-amd64.exe" \
-        "frpw-agent-$FRPW_VERSION-darwin-amd64" \
-        "frpw-agent-$FRPW_VERSION-darwin-arm64" \
+        "frpw-client-$FRPW_VERSION-linux-amd64" \
+        "frpw-client-$FRPW_VERSION-linux-arm64" \
+        "frpw-client-$FRPW_VERSION-windows-amd64.exe" \
+        "frpw-client-$FRPW_VERSION-darwin-amd64" \
+        "frpw-client-$FRPW_VERSION-darwin-arm64" \
         "frpw-node-$FRPW_VERSION-linux-amd64" \
         "frpw-node-$FRPW_VERSION-linux-arm64"; do
         if download_asset "$asset_name" "$TMP_DIR/$asset_name"; then
