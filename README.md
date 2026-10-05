@@ -22,19 +22,13 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 支持 Linux amd64 / arm64。云主机使用 `root` 或具有 `sudo` 权限的账号执行：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
-  -H "Accept: application/vnd.github.raw+json" \
-  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
-  -o /tmp/frpw-install.sh && sudo sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" -o /tmp/frpw-install.sh && sudo sh /tmp/frpw-install.sh server
 ```
 
 如果当前网络的流式下载经常中断，也可以先保存脚本再执行：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 \
-  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
-  -o /tmp/frpw-install.sh
-sudo sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh -o /tmp/frpw-install.sh && sudo sh /tmp/frpw-install.sh server
 ```
 
 ### 国内镜像一键安装
@@ -43,17 +37,13 @@ sudo sh /tmp/frpw-install.sh server
 `ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
-  https://cdn.jsdelivr.net/gh/ccmaoxiong/frpw@v1.0.0/scripts/install-cn.sh \
-  -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://cdn.jsdelivr.net/gh/ccmaoxiong/frpw@v1.0.0/scripts/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
 ```
 
 备用入口：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
-  https://ghfast.top/https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh \
-  -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://ghfast.top/https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
 ```
 
 安装 Agent 或远程节点时，把最后的 `server` 改为 `agent` 或 `node`，并按下方说明
@@ -62,14 +52,7 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
-  -H "Accept: application/vnd.github.raw+json" \
-  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
-  -o /tmp/frpw-install.sh && sudo env \
-      FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" \
-      FRPW_BASE_DOMAIN="example.com" \
-      FRPW_PUBLIC_HTTP_PORT="8080" \
-      sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" -o /tmp/frpw-install.sh && sudo env FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" FRPW_BASE_DOMAIN="example.com" FRPW_PUBLIC_HTTP_PORT="8080" sh /tmp/frpw-install.sh server
 ```
 
 安装完成后：
@@ -86,28 +69,13 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
 Agent 服务端仅支持 Linux。在需要发布内网服务的 Linux 机器上执行：
 
 ```bash
-curl -fsSL -H "Accept: application/vnd.github.raw+json" \
-  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
-  -o /tmp/frpw-install.sh && sudo env \
-      FRPW_SERVER="tunnel.example.com:7000" \
-      FRPW_CONTROL_PLANE="http://console.example.com:9000" \
-      FRPW_AGENT_TOKEN="管理端生成的令牌" \
-      FRPW_AGENT_ID="office-pc" \
-      sh /tmp/frpw-install.sh agent
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" -o /tmp/frpw-install.sh && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install.sh agent
 ```
 
 ## 安装远程节点
 
 ```bash
-curl -fsSL -H "Accept: application/vnd.github.raw+json" \
-  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
-  -o /tmp/frpw-install.sh && sudo env \
-      FRPW_CONTROL_PLANE="http://console.example.com:9000" \
-      FRPW_NODE_TOKEN="节点创建时显示的令牌" \
-      FRPW_NODE_AGENT_ADDR=":7000" \
-      FRPW_NODE_PUBLIC_HTTP_PORT="8080" \
-      FRPW_NODE_BASE_DOMAIN="edge.example.com" \
-      sh /tmp/frpw-install.sh node
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" -o /tmp/frpw-install.sh && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install.sh node
 ```
 
 ## Windows 客户端
