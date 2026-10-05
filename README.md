@@ -2,7 +2,7 @@
 
 ![Closed Source](https://img.shields.io/badge/source-closed--source-111111)
 ![Release](https://img.shields.io/badge/release-v1.0.0-2563eb)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-0f766e)
+![Platform](https://img.shields.io/badge/platform-Linux%20Server%20%7C%20Cross--platform%20Agent-0f766e)
 
 FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平台。公开仓库只发布
 经过构建和校验的发行文件、安装脚本与文档，不公开服务端、Agent 或节点源码。
@@ -14,7 +14,7 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 - Agent、远程 Edge 节点、节点配置下发和自动同步
 - 套餐、增值服务、余额、账单、订单和自动续费
 - 码支付主通道、备用通道、Webhook 与线下汇款
-- Linux、Windows、macOS 客户端发行包
+- Windows、Linux、macOS Agent 客户端发行包
 - 服务端和客户端 SHA-256 完整性校验
 
 ## 一键安装服务端
@@ -81,20 +81,11 @@ curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/inst
       sh -s -- node
 ```
 
-## Windows 安装
+## Windows 客户端
 
-在普通 PowerShell 中执行下面的命令，脚本会自动弹出管理员授权：
-
-```powershell
-$script = Join-Path $env:TEMP "frpw-install.ps1"
-Invoke-RestMethod `
-  -Uri "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.ps1?ref=v1.0.0" `
-  -Headers @{ Accept = "application/vnd.github.raw+json"; "User-Agent" = "frpw-installer" } `
-  -OutFile $script
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Component server
-```
-
-把 `server` 改为 `agent` 或 `node` 可安装对应组件。
+Windows 仅作为 Agent 客户端平台继续支持。服务端和远程节点只发布 Linux 版本。
+登录用户控制台后进入「客户端接入」，选择 `Windows x64`，即可下载已内置平台地址、节点和
+同步策略的完整客户端 ZIP；解压后运行 `start.bat` 即可。
 
 ## 公网端口
 
@@ -114,11 +105,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Component serve
 
 `v1.0.0` Release 包含：
 
-- Server：Linux amd64 / arm64、Windows amd64
-- Agent：Linux amd64 / arm64、Windows amd64、macOS amd64 / arm64
-- Node：Linux amd64 / arm64、Windows amd64
+- Server：Linux amd64 / arm64
+- Agent：Windows amd64、Linux amd64 / arm64、macOS amd64 / arm64
+- Node：Linux amd64 / arm64
 - `SHA256SUMS`
-- Linux 与 Windows 一键安装脚本
+- Linux 一键安装脚本
 
 所有发行二进制均提供 SHA-256 校验。安装脚本会在写入系统目录前验证下载文件。
 

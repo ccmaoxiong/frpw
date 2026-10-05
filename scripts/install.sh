@@ -307,8 +307,7 @@ download_client_catalog() {
         "frpw-agent-$FRPW_VERSION-darwin-amd64" \
         "frpw-agent-$FRPW_VERSION-darwin-arm64" \
         "frpw-node-$FRPW_VERSION-linux-amd64" \
-        "frpw-node-$FRPW_VERSION-linux-arm64" \
-        "frpw-node-$FRPW_VERSION-windows-amd64.exe"; do
+        "frpw-node-$FRPW_VERSION-linux-arm64"; do
         if download_asset "$asset_name" "$TMP_DIR/$asset_name"; then
             verify_asset "$asset_name" "$TMP_DIR/$asset_name" "$TMP_DIR/SHA256SUMS"
             install -m 0755 "$TMP_DIR/$asset_name" "$client_dir/$asset_name"
@@ -478,7 +477,7 @@ EOF
 
 main() {
     need_root
-    [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only; use install.ps1 on Windows"
+    [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only"
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
     load_release
