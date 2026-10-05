@@ -12,3 +12,4 @@
 - Added systemd service installation for Linux.
 - Hardened checksum manifest parsing and retry behavior for invalid downloads.
 - Added repository licensing, release workflow, and release metadata.
+- Simplified payment configuration to three fields per channel: an epay primary channel plus a 黑胡椒支付 (xunhupay) backup channel with independent credentials. Legacy `codepay_*` settings migrate automatically.
