@@ -8,5 +8,7 @@
 - Added private GitHub Release downloads with SHA-256 verification.
 - Added systemd and Windows startup-task service installation.
 - Added support for an authenticated private release mirror.
+- Fixed one-click installer asset resolution for compact GitHub API responses.
+- Added automatic fallback from GitHub API asset downloads to public Release URLs.
 - Unified server and node build-time version reporting.
 - Added repository licensing, release workflow, and release metadata.

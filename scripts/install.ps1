@@ -13,6 +13,7 @@ if (-not $Version.StartsWith("v")) {
 
 $Repo = if ($env:FRPW_REPO) { $env:FRPW_REPO } else { "ccmaoxiong/frpw" }
 $ApiBase = if ($env:FRPW_GITHUB_API_URL) { $env:FRPW_GITHUB_API_URL.TrimEnd("/") } else { "https://api.github.com" }
+$GithubDownloadBase = if ($env:FRPW_GITHUB_DOWNLOAD_URL) { $env:FRPW_GITHUB_DOWNLOAD_URL.TrimEnd("/") } else { "https://github.com" }
 $DownloadBase = if ($env:FRPW_DOWNLOAD_BASE_URL) { $env:FRPW_DOWNLOAD_BASE_URL.TrimEnd("/") } else { "" }
 $Token = if ($env:FRPW_TOKEN) { $env:FRPW_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { "" }
 $ServiceUser = if ($env:FRPW_SERVICE_USER) { $env:FRPW_SERVICE_USER } else { "frpw" }
@@ -61,11 +62,19 @@ function Get-Asset([string]$AssetName, [string]$Destination, $Release) {
         Invoke-WebRequest -Uri "$DownloadBase/$AssetName" -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
         return
     }
-    $asset = $Release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
-    if (-not $asset) {
-        Stop-Install "release asset $AssetName was not found in $Version"
+    if ($Release) {
+        $asset = $Release.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
+        if ($asset) {
+            try {
+                Invoke-WebRequest -Uri $asset.url -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
+                return
+            }
+            catch {
+                Write-Warning "GitHub API download failed for $AssetName; trying public download URL"
+            }
+        }
     }
-    Invoke-WebRequest -Uri $asset.url -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
+    Invoke-WebRequest -Uri "$GithubDownloadBase/$Repo/releases/download/$Version/$AssetName" -Headers (Get-Headers "application/octet-stream") -OutFile $Destination
 }
 
 function Get-Sha256([string]$Path) {
@@ -294,7 +303,15 @@ if (-not (Test-Administrator)) {
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("frpw-install-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 try {
-    $release = if ($DownloadBase) { $null } else { Get-Release $Version }
+    $release = $null
+    if (-not $DownloadBase) {
+        try {
+            $release = Get-Release $Version
+        }
+        catch {
+            Write-Warning "GitHub release metadata unavailable; falling back to public download URLs"
+        }
+    }
     Get-Asset "SHA256SUMS" (Join-Path $tempDir "SHA256SUMS") $release
     switch ($Component) {
         "server" { Install-Server $release $tempDir }

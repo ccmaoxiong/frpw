@@ -5,8 +5,10 @@ COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
 FRPW_REPO="${FRPW_REPO:-ccmaoxiong/frpw}"
 FRPW_VERSION="${FRPW_VERSION:-v1.0.0}"
 FRPW_GITHUB_API_URL="${FRPW_GITHUB_API_URL:-https://api.github.com}"
+FRPW_GITHUB_DOWNLOAD_URL="${FRPW_GITHUB_DOWNLOAD_URL:-https://github.com}"
 FRPW_DOWNLOAD_BASE_URL="${FRPW_DOWNLOAD_BASE_URL:-}"
 FRPW_TOKEN="${FRPW_TOKEN:-${GITHUB_TOKEN:-}}"
+RELEASE_JSON=""
 FRPW_SERVICE_USER="${FRPW_SERVICE_USER:-frpw}"
 
 case "$FRPW_VERSION" in
@@ -122,19 +124,20 @@ load_release() {
     if [ -n "$FRPW_DOWNLOAD_BASE_URL" ]; then
         return
     fi
-    RELEASE_JSON="$(http_get "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/tags/$FRPW_VERSION")"
-    if [ -z "$RELEASE_JSON" ]; then
-        die "release $FRPW_VERSION was not found in $FRPW_REPO"
+    if RELEASE_JSON="$(http_get "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/tags/$FRPW_VERSION")" && [ -n "$RELEASE_JSON" ]; then
+        return
     fi
+    RELEASE_JSON=""
+    warn "GitHub release metadata unavailable; falling back to public download URLs"
 }
 
 asset_id() {
     asset_name="$1"
-    printf '%s\n' "$RELEASE_JSON" | awk -v wanted="\"name\": \"$asset_name\"" '
-        /"id":/ {
+    printf '%s\n' "$RELEASE_JSON" | tr ',' '\n' | awk -v wanted="\"name\":\"$asset_name\"" '
+        /"id":[[:space:]]*[0-9]+/ {
             line = $0
             sub(/^.*"id":[[:space:]]*/, "", line)
-            sub(/,.*$/, "", line)
+            sub(/[^0-9].*$/, "", line)
             id = line
         }
         index($0, wanted) > 0 {
@@ -152,9 +155,16 @@ download_asset() {
         download_file "$download_base/$asset_name" "$destination"
         return
     fi
-    id="$(asset_id "$asset_name")"
-    [ -n "$id" ] || die "release asset $asset_name was not found in $FRPW_VERSION"
-    download_file "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/assets/$id" "$destination"
+    id=""
+    if [ -n "$RELEASE_JSON" ]; then
+        id="$(asset_id "$asset_name")"
+    fi
+    if [ -n "$id" ] && download_file "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/assets/$id" "$destination"; then
+        return
+    fi
+    [ -z "$id" ] || warn "GitHub API download failed for $asset_name; trying public download URL"
+    github_download_base="${FRPW_GITHUB_DOWNLOAD_URL%/}"
+    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination"
 }
 
 sha256_file() {
