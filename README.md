@@ -22,27 +22,31 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 支持 Linux amd64 / arm64。云主机使用 `root` 或具有 `sudo` 权限的账号执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
-  | sudo sh -s -- server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
+  https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
+  -o /tmp/frpw-install.sh
+sudo sh /tmp/frpw-install.sh server
 ```
 
-如果 GitHub Raw 缓存或网络导致脚本未及时更新，可改用 API 入口：
+如果当前网络阻断了 `raw.githubusercontent.com`，可从同一 Release 的附件下载
+`install.sh` 后执行，或使用镜像参数。安装器默认直接读取 Release 文件，
+不会因为 GitHub API 限流或 HTTP/2 协议错误而中断：
 
 ```bash
-curl -fsSL -H "Accept: application/vnd.github.raw+json" \
-  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
-  | sudo sh -s -- server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 \
+  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
+  -o /tmp/frpw-install.sh
+sudo sh /tmp/frpw-install.sh server
 ```
 
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
-  | sudo env \
+sudo env \
       FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" \
       FRPW_BASE_DOMAIN="example.com" \
       FRPW_PUBLIC_HTTP_PORT="8080" \
-      sh -s -- server
+      sh /tmp/frpw-install.sh server
 ```
 
 安装完成后：
@@ -59,26 +63,24 @@ curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/inst
 Agent 服务端仅支持 Linux。在需要发布内网服务的 Linux 机器上执行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
-  | sudo env \
+sudo env \
       FRPW_SERVER="tunnel.example.com:7000" \
       FRPW_CONTROL_PLANE="http://console.example.com:9000" \
       FRPW_AGENT_TOKEN="管理端生成的令牌" \
       FRPW_AGENT_ID="office-pc" \
-      sh -s -- agent
+      sh /tmp/frpw-install.sh agent
 ```
 
 ## 安装远程节点
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
-  | sudo env \
+sudo env \
       FRPW_CONTROL_PLANE="http://console.example.com:9000" \
       FRPW_NODE_TOKEN="节点创建时显示的令牌" \
       FRPW_NODE_AGENT_ADDR=":7000" \
       FRPW_NODE_PUBLIC_HTTP_PORT="8080" \
       FRPW_NODE_BASE_DOMAIN="edge.example.com" \
-      sh -s -- node
+      sh /tmp/frpw-install.sh node
 ```
 
 ## Windows 客户端
@@ -123,6 +125,10 @@ export FRPW_DOWNLOAD_BASE_URL="https://download.example.com/frpw/v1.0.0"
 ```
 
 该目录需要包含 Release 中的二进制与 `SHA256SUMS`。使用自建镜像时安装脚本不再访问 GitHub。
+
+安装器默认直接读取公开 Release，不依赖 GitHub API。仅在私有发行或显式设置
+`FRPW_USE_GITHUB_API=1` 时，才先请求 GitHub API；拥有仓库读取权限时可同时
+设置 `FRPW_TOKEN`。
 
 ## 许可
 

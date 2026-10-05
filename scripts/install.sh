@@ -8,12 +8,28 @@ FRPW_GITHUB_API_URL="${FRPW_GITHUB_API_URL:-https://api.github.com}"
 FRPW_GITHUB_DOWNLOAD_URL="${FRPW_GITHUB_DOWNLOAD_URL:-https://github.com}"
 FRPW_DOWNLOAD_BASE_URL="${FRPW_DOWNLOAD_BASE_URL:-}"
 FRPW_TOKEN="${FRPW_TOKEN:-${GITHUB_TOKEN:-}}"
+FRPW_USE_GITHUB_API="${FRPW_USE_GITHUB_API:-}"
+FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
+FRPW_MAX_TIME="${FRPW_MAX_TIME:-600}"
+FRPW_RETRIES="${FRPW_RETRIES:-5}"
 RELEASE_JSON=""
 FRPW_SERVICE_USER="${FRPW_SERVICE_USER:-frpw}"
 
 case "$FRPW_VERSION" in
     v*) ;;
     *) FRPW_VERSION="v$FRPW_VERSION" ;;
+esac
+
+case "$FRPW_USE_GITHUB_API" in
+    "")
+        if [ -n "$FRPW_TOKEN" ]; then
+            FRPW_USE_GITHUB_API=1
+        else
+            FRPW_USE_GITHUB_API=0
+        fi
+        ;;
+    1 | true | yes) FRPW_USE_GITHUB_API=1 ;;
+    *) FRPW_USE_GITHUB_API=0 ;;
 esac
 
 log() {
@@ -39,6 +55,17 @@ have() {
     command -v "$1" >/dev/null 2>&1
 }
 
+validate_url() {
+    url="$1"
+    case "$url" in
+        http://* | https://*) ;;
+        *) die "invalid download URL: $url" ;;
+    esac
+    case "$url" in
+        *[[:space:]]*) die "download URL contains whitespace or control characters" ;;
+    esac
+}
+
 detect_arch() {
     case "$(uname -m)" in
         x86_64 | amd64) printf '%s' "amd64" ;;
@@ -50,16 +77,19 @@ detect_arch() {
 http_get() {
     url="$1"
     accept="${2:-application/vnd.github+json}"
+    validate_url "$url"
     if have curl; then
         if [ -n "$FRPW_TOKEN" ]; then
-            curl -fsSL --retry 3 --connect-timeout 15 \
+            curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+                --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Authorization: Bearer $FRPW_TOKEN" \
                 -H "Accept: $accept" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 -H "User-Agent: frpw-installer" \
                 "$url"
         else
-            curl -fsSL --retry 3 --connect-timeout 15 \
+            curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+                --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Accept: $accept" \
                 -H "User-Agent: frpw-installer" \
                 "$url"
@@ -68,13 +98,15 @@ http_get() {
     fi
     if have wget; then
         if [ -n "$FRPW_TOKEN" ]; then
-            wget -qO- --header="Authorization: Bearer $FRPW_TOKEN" \
+            wget -qO- --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+                --header="Authorization: Bearer $FRPW_TOKEN" \
                 --header="Accept: $accept" \
                 --header="X-GitHub-Api-Version: 2022-11-28" \
                 --header="User-Agent: frpw-installer" \
                 "$url"
         else
-            wget -qO- --header="Accept: $accept" \
+            wget -qO- --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+                --header="Accept: $accept" \
                 --header="User-Agent: frpw-installer" \
                 "$url"
         fi
@@ -87,35 +119,72 @@ download_file() {
     url="$1"
     destination="$2"
     accept="${3:-application/octet-stream}"
+    validate_url "$url"
+    temporary="$destination.part"
+    rm -f "$temporary"
     if have curl; then
         if [ -n "$FRPW_TOKEN" ]; then
-            curl -fsSL --retry 3 --connect-timeout 15 \
+            if curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+                --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Authorization: Bearer $FRPW_TOKEN" \
                 -H "Accept: $accept" \
                 -H "User-Agent: frpw-installer" \
-                -o "$destination" \
-                "$url"
+                -o "$temporary" \
+                "$url"; then
+                :
+            else
+                rm -f "$temporary"
+                return 1
+            fi
         else
-            curl -fsSL --retry 3 --connect-timeout 15 \
+            if curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+                --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Accept: $accept" \
                 -H "User-Agent: frpw-installer" \
-                -o "$destination" \
-                "$url"
+                -o "$temporary" \
+                "$url"; then
+                :
+            else
+                rm -f "$temporary"
+                return 1
+            fi
         fi
-        return
+        if [ -s "$temporary" ]; then
+            mv -f "$temporary" "$destination"
+            return 0
+        fi
+        rm -f "$temporary"
+        return 1
     fi
     if have wget; then
         if [ -n "$FRPW_TOKEN" ]; then
-            wget -qO "$destination" --header="Authorization: Bearer $FRPW_TOKEN" \
+            if wget -qO "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+                --header="Authorization: Bearer $FRPW_TOKEN" \
                 --header="Accept: $accept" \
                 --header="User-Agent: frpw-installer" \
-                "$url"
+                "$url"; then
+                :
+            else
+                rm -f "$temporary"
+                return 1
+            fi
         else
-            wget -qO "$destination" --header="Accept: $accept" \
+            if wget -qO "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+                --header="Accept: $accept" \
                 --header="User-Agent: frpw-installer" \
-                "$url"
+                "$url"; then
+                :
+            else
+                rm -f "$temporary"
+                return 1
+            fi
         fi
-        return
+        if [ -s "$temporary" ]; then
+            mv -f "$temporary" "$destination"
+            return 0
+        fi
+        rm -f "$temporary"
+        return 1
     fi
     die "curl or wget is required"
 }
@@ -124,7 +193,11 @@ load_release() {
     if [ -n "$FRPW_DOWNLOAD_BASE_URL" ]; then
         return
     fi
-    if RELEASE_JSON="$(http_get "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/tags/$FRPW_VERSION")" && [ -n "$RELEASE_JSON" ]; then
+    if [ "$FRPW_USE_GITHUB_API" != "1" ]; then
+        return
+    fi
+    api_base="${FRPW_GITHUB_API_URL%/}"
+    if RELEASE_JSON="$(http_get "$api_base/repos/$FRPW_REPO/releases/tags/$FRPW_VERSION")" && [ -n "$RELEASE_JSON" ]; then
         return
     fi
     RELEASE_JSON=""
@@ -133,7 +206,7 @@ load_release() {
 
 asset_id() {
     asset_name="$1"
-    printf '%s\n' "$RELEASE_JSON" | tr ',' '\n' | awk -v wanted="\"name\":\"$asset_name\"" '
+    printf '%s\n' "$RELEASE_JSON" | tr ',' '\n' | tr -d '\r' | awk -v wanted="\"name\":\"$asset_name\"" '
         /"id":[[:space:]]*[0-9]+/ {
             line = $0
             sub(/^.*"id":[[:space:]]*/, "", line)
@@ -156,10 +229,14 @@ download_asset() {
         return
     fi
     id=""
-    if [ -n "$RELEASE_JSON" ]; then
+    if [ "$FRPW_USE_GITHUB_API" = "1" ] && [ -n "$RELEASE_JSON" ]; then
         id="$(asset_id "$asset_name")"
     fi
-    if [ -n "$id" ] && download_file "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/assets/$id" "$destination"; then
+    case "$id" in
+        '' | *[!0-9]*) id="" ;;
+    esac
+    api_base="${FRPW_GITHUB_API_URL%/}"
+    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination"; then
         return
     fi
     [ -z "$id" ] || warn "GitHub API download failed for $asset_name; trying public download URL"
@@ -196,10 +273,14 @@ download_checksums() {
         return
     fi
     id=""
-    if [ -n "$RELEASE_JSON" ]; then
+    if [ "$FRPW_USE_GITHUB_API" = "1" ] && [ -n "$RELEASE_JSON" ]; then
         id="$(asset_id "SHA256SUMS")"
     fi
-    if [ -n "$id" ] && download_file "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/assets/$id" "$destination" && [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ]; then
+    case "$id" in
+        '' | *[!0-9]*) id="" ;;
+    esac
+    api_base="${FRPW_GITHUB_API_URL%/}"
+    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination" && [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ]; then
         return
     fi
     [ -z "$id" ] || warn "GitHub API checksum download was invalid; trying public download URL"
