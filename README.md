@@ -34,16 +34,17 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frp
 ### 国内镜像一键安装
 
 国内网络推荐使用专用安装器。它会自动在 `ghfast.top`、`gh-proxy.com` 和
-`ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`：
+`ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`。安装器本体从 release
+资产经镜像代理获取，避免 Git CDN 对 tag 的解析缓存导致拿到旧脚本：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://cdn.jsdelivr.net/gh/ccmaoxiong/frpw@v1.0.0/scripts/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
 ```
 
 备用入口：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://ghfast.top/https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh -o /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server
 ```
 
 安装 Agent 或远程节点时，把最后的 `server` 改为 `agent` 或 `node`，并按下方说明
