@@ -23,14 +23,11 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 
 ```bash
 curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
-  https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install.sh \
-  -o /tmp/frpw-install.sh
-sudo sh /tmp/frpw-install.sh server
+  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
+  | sudo sh -s -- server
 ```
 
-如果当前网络阻断了 `raw.githubusercontent.com`，可从同一 Release 的附件下载
-`install.sh` 后执行，或使用镜像参数。安装器默认直接读取 Release 文件，
-不会因为 GitHub API 限流或 HTTP/2 协议错误而中断：
+如果当前网络的流式下载经常中断，也可以先保存脚本再执行：
 
 ```bash
 curl --http1.1 -fsSL --retry 5 --retry-delay 2 \
@@ -42,11 +39,13 @@ sudo sh /tmp/frpw-install.sh server
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
 ```bash
-sudo env \
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
+  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
+  | sudo env \
       FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" \
       FRPW_BASE_DOMAIN="example.com" \
       FRPW_PUBLIC_HTTP_PORT="8080" \
-      sh /tmp/frpw-install.sh server
+      sh -s -- server
 ```
 
 安装完成后：
@@ -63,24 +62,28 @@ sudo env \
 Agent 服务端仅支持 Linux。在需要发布内网服务的 Linux 机器上执行：
 
 ```bash
-sudo env \
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
+  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
+  | sudo env \
       FRPW_SERVER="tunnel.example.com:7000" \
       FRPW_CONTROL_PLANE="http://console.example.com:9000" \
       FRPW_AGENT_TOKEN="管理端生成的令牌" \
       FRPW_AGENT_ID="office-pc" \
-      sh /tmp/frpw-install.sh agent
+      sh -s -- agent
 ```
 
 ## 安装远程节点
 
 ```bash
-sudo env \
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 \
+  https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install.sh \
+  | sudo env \
       FRPW_CONTROL_PLANE="http://console.example.com:9000" \
       FRPW_NODE_TOKEN="节点创建时显示的令牌" \
       FRPW_NODE_AGENT_ADDR=":7000" \
       FRPW_NODE_PUBLIC_HTTP_PORT="8080" \
       FRPW_NODE_BASE_DOMAIN="edge.example.com" \
-      sh /tmp/frpw-install.sh node
+      sh -s -- node
 ```
 
 ## Windows 客户端
