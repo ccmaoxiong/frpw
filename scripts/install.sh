@@ -167,6 +167,47 @@ download_asset() {
     download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination"
 }
 
+checksum_for_asset() {
+    asset_name="$1"
+    sums="$2"
+    awk -v name="$asset_name" '
+        {
+            checksum = $1
+            file = $2
+            sub(/\r$/, "", checksum)
+            sub(/\r$/, "", file)
+            sub(/^\*/, "", file)
+            sub(/^\.\//, "", file)
+            if (length(checksum) == 64 && file == name) {
+                print tolower(checksum)
+                exit
+            }
+        }
+    ' "$sums"
+}
+
+download_checksums() {
+    destination="$1"
+    manifest_asset="frpw-server-$FRPW_VERSION-linux-amd64"
+    download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
+    if [ -n "$download_base" ]; then
+        download_file "$download_base/SHA256SUMS" "$destination"
+        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "downloaded SHA256SUMS is invalid"
+        return
+    fi
+    id=""
+    if [ -n "$RELEASE_JSON" ]; then
+        id="$(asset_id "SHA256SUMS")"
+    fi
+    if [ -n "$id" ] && download_file "$FRPW_GITHUB_API_URL/repos/$FRPW_REPO/releases/assets/$id" "$destination" && [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ]; then
+        return
+    fi
+    [ -z "$id" ] || warn "GitHub API checksum download was invalid; trying public download URL"
+    github_download_base="${FRPW_GITHUB_DOWNLOAD_URL%/}"
+    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/SHA256SUMS" "$destination"
+    [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "downloaded SHA256SUMS is invalid"
+}
+
 sha256_file() {
     file="$1"
     if have sha256sum; then
@@ -182,8 +223,8 @@ verify_asset() {
     asset_name="$1"
     file="$2"
     sums="$3"
-    expected="$(awk -v name="$asset_name" '$2 == name {print $1; exit}' "$sums")"
-    [ -n "$expected" ] || die "SHA256SUMS has no entry for $asset_name"
+    expected="$(checksum_for_asset "$asset_name" "$sums")"
+    [ -n "$expected" ] || die "SHA256SUMS has no valid entry for $asset_name"
     actual="$(sha256_file "$file")"
     if [ "$actual" != "$expected" ]; then
         die "checksum verification failed for $asset_name"
@@ -441,7 +482,7 @@ main() {
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
     load_release
-    download_asset "SHA256SUMS" "$TMP_DIR/SHA256SUMS"
+    download_checksums "$TMP_DIR/SHA256SUMS"
 
     case "$COMPONENT" in
         server) install_server ;;

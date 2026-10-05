@@ -26,6 +26,14 @@ curl -fsSL https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/inst
   | sudo sh -s -- server
 ```
 
+如果 GitHub Raw 缓存或网络导致脚本未及时更新，可改用 API 入口：
+
+```bash
+curl -fsSL -H "Accept: application/vnd.github.raw+json" \
+  "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" \
+  | sudo sh -s -- server
+```
+
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
 ```bash

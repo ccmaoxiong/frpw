@@ -81,17 +81,27 @@ function Get-Sha256([string]$Path) {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
-function Assert-Checksum([string]$AssetName, [string]$Path, [string]$SumsPath) {
-    $expected = $null
+function Get-ExpectedChecksum([string]$AssetName, [string]$SumsPath) {
     foreach ($line in (Get-Content -LiteralPath $SumsPath)) {
-        $parts = $line -split "\s+"
-        if ($parts.Count -ge 2 -and $parts[1] -eq $AssetName) {
-            $expected = $parts[0].ToLowerInvariant()
-            break
+        $parts = $line.Trim() -split '\s+'
+        if ($parts.Count -lt 2 -or $parts[0] -notmatch '^[0-9a-fA-F]{64}$') {
+            continue
+        }
+        $fileName = $parts[1] -replace '^\*', ''
+        if ($fileName.StartsWith('./')) {
+            $fileName = $fileName.Substring(2)
+        }
+        if ($fileName -eq $AssetName) {
+            return $parts[0].ToLowerInvariant()
         }
     }
+    return $null
+}
+
+function Assert-Checksum([string]$AssetName, [string]$Path, [string]$SumsPath) {
+    $expected = Get-ExpectedChecksum $AssetName $SumsPath
     if (-not $expected) {
-        Stop-Install "SHA256SUMS has no entry for $AssetName"
+        Stop-Install "SHA256SUMS has no valid entry for $AssetName"
     }
     $actual = Get-Sha256 $Path
     if ($actual -ne $expected) {
