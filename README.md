@@ -33,14 +33,17 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frp
 
 ### 国内镜像一键安装
 
-国内网络推荐使用专用安装器。下面的命令会依次尝试 jsDelivr、gh-proxy、ghfast.top
-和 GitHub raw，哪个能通就用哪个，并强制 IPv4（国内服务器 IPv6 出口不通时 curl
-会卡在握手并报 `SSL connection timeout`）；安装器内部还会在 `ghfast.top`、
-`gh-proxy.com` 和 `ghproxy.net` 之间切换，并固定校验安装器与 `SHA256SUMS`。
-入口使用 commit 哈希而不是 tag，避免 Git CDN 对 tag 的解析缓存拿到旧脚本：
+国内网络推荐使用专用安装器，一行完成下载与安装（强制 IPv4，安装器内部自动在
+`ghfast.top`、`gh-proxy.com` 和 `ghproxy.net` 之间切换镜像，并校验 `SHA256SUMS`）：
 
 ```bash
-rm -f /tmp/frpw-install-cn.sh; for u in "https://cdn.jsdelivr.net/gh/ccmaoxiong/frpw@62c8d7259f4d51fb45878044085f76ec2d869aa9/scripts/install-cn.sh" "https://fastly.jsdelivr.net/gh/ccmaoxiong/frpw@62c8d7259f4d51fb45878044085f76ec2d869aa9/scripts/install-cn.sh" "https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh" "https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh" "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh"; do echo "trying $u"; curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "$u" && break; done; test -s /tmp/frpw-install-cn.sh && sudo sh /tmp/frpw-install-cn.sh server || echo "所有入口均不可用，请改用标准安装器或设置 FRPW_CN_MIRROR_BASE_URL"
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo sh /tmp/frpw-install-cn.sh server
+```
+
+raw 入口不通时改用 ghfast 镜像：
+
+```bash
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/install-cn.sh" && sudo sh /tmp/frpw-install-cn.sh server
 ```
 
 安装 Agent 或远程节点时，把最后的 `server` 改为 `agent` 或 `node`，并按下方说明
@@ -60,14 +63,6 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 - 默认用户：`user@example.com` / `user12345`
 
 首次登录后立即修改默认密码。升级时重新执行相同命令会保留数据库和已有配置。
-
-### 国内一键安装（单条命令）
-
-对网络稳定的国内服务器，也可以直接保存专用安装器再执行，两个动作一条命令：
-
-```bash
-curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo sh /tmp/frpw-install-cn.sh server
-```
 
 ### 安装 Agent（国内）
 
