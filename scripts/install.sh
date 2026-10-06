@@ -381,17 +381,22 @@ install_binary() {
 download_client_catalog() {
     client_dir="$DATA_DIR/client-releases"
     install -d -m 0755 "$client_dir"
-    for asset_name in \
-        "frpw-client-$FRPW_VERSION-linux-amd64" \
-        "frpw-client-$FRPW_VERSION-linux-arm64" \
-        "frpw-client-$FRPW_VERSION-windows-amd64.exe" \
-        "frpw-client-$FRPW_VERSION-darwin-amd64" \
-        "frpw-client-$FRPW_VERSION-darwin-arm64" \
-        "frpw-node-$FRPW_VERSION-linux-amd64" \
-        "frpw-node-$FRPW_VERSION-linux-arm64"; do
+    # The server looks up fixed, version-less filenames (see
+    # internal/api/client.go), so each asset is installed under its
+    # catalog name rather than the release asset name.
+    for pair in \
+        "frpw-client-$FRPW_VERSION-linux-amd64:frpw-client-linux-amd64" \
+        "frpw-client-$FRPW_VERSION-linux-arm64:frpw-client-linux-arm64" \
+        "frpw-client-$FRPW_VERSION-windows-amd64.exe:frpw-client-windows-amd64.exe" \
+        "frpw-client-$FRPW_VERSION-darwin-amd64:frpw-client-darwin-amd64" \
+        "frpw-client-$FRPW_VERSION-darwin-arm64:frpw-client-darwin-arm64" \
+        "frpw-node-$FRPW_VERSION-linux-amd64:frpw-node-linux-amd64" \
+        "frpw-node-$FRPW_VERSION-linux-arm64:frpw-node-linux-arm64"; do
+        asset_name="${pair%%:*}"
+        catalog_name="${pair##*:}"
         if download_asset "$asset_name" "$TMP_DIR/$asset_name"; then
             verify_asset "$asset_name" "$TMP_DIR/$asset_name" "$TMP_DIR/SHA256SUMS"
-            install -m 0755 "$TMP_DIR/$asset_name" "$client_dir/$asset_name"
+            install -m 0755 "$TMP_DIR/$asset_name" "$client_dir/$catalog_name"
         else
             warn "optional release asset unavailable: $asset_name"
         fi
