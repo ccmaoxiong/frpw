@@ -61,6 +61,26 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 
 首次登录后立即修改默认密码。升级时重新执行相同命令会保留数据库和已有配置。
 
+### 国内一键安装（单条命令）
+
+对网络稳定的国内服务器，也可以直接保存专用安装器再执行，两个动作一条命令：
+
+```bash
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo sh /tmp/frpw-install-cn.sh server
+```
+
+### 安装 Agent（国内）
+
+```bash
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install-cn.sh agent
+```
+
+### 安装远程节点（国内）
+
+```bash
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install-cn.sh node
+```
+
 ## 安装 Agent
 
 Agent 服务端仅支持 Linux。在需要发布内网服务的 Linux 机器上执行：
