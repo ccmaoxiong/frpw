@@ -350,7 +350,7 @@ Type=simple
 User=$FRPW_SERVICE_USER
 Group=$FRPW_SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$EXEC_START
+ExecStart=/bin/sh -c "while true; do $EXEC_START; code=\$?; [ \$code -eq 42 ] || exit \$code; done"
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576
