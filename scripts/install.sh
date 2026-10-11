@@ -16,6 +16,9 @@ FRPW_RETRIES="${FRPW_RETRIES:-5}"
 RELEASE_JSON=""
 FRPW_SERVICE_USER="${FRPW_SERVICE_USER:-frpw}"
 
+# Extra Environment= line injected into the systemd unit (server only).
+UNIT_ENVIRONMENT=""
+
 # --- paid license gate ---------------------------------------------------------
 # Install requires a signed license key (FRPW_LICENSE). Keys are issued by the
 # vendor; the script embeds only the Ed25519 public key and verifies locally.
@@ -445,6 +448,7 @@ Type=simple
 User=$FRPW_SERVICE_USER
 Group=$FRPW_SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
+$UNIT_ENVIRONMENT
 ExecStart=$EXEC_START
 Restart=always
 RestartSec=3
@@ -518,6 +522,19 @@ install_server() {
 
     install -d -m 0755 "$INSTALL_DIR" "$CONFIG_DIR" "$DATA_DIR"
     ensure_user
+
+    # Persist the paid license key so the server binary re-verifies it on every
+    # start and every 6 hours, independent of this installer run.
+    license_file="${FRPW_LICENSE_FILE:-$CONFIG_DIR/license.key}"
+    printf '%s\n' "$FRPW_LICENSE" > "$license_file"
+    if chown root:"$FRPW_SERVICE_USER" "$license_file" 2>/dev/null; then
+        chmod 0640 "$license_file"
+    else
+        chown "$FRPW_SERVICE_USER" "$license_file"
+        chmod 0600 "$license_file"
+    fi
+    UNIT_ENVIRONMENT="Environment=FRPW_LICENSE_FILE=$license_file"
+    log "license key stored: $license_file"
     install_binary "frpw-server-$FRPW_VERSION-linux-$(detect_arch)" "$INSTALL_DIR/frpw-server"
 
     if [ ! -f "$CONFIG_FILE" ]; then
