@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
+COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
 FRPW_VERSION="v1.0.0"
 FRPW_REPO="ccmaoxiong/frpw"
 FRPW_RELEASE_URL="https://github.com/$FRPW_REPO/releases/download/$FRPW_VERSION"
@@ -8,7 +9,7 @@ FRPW_RELEASE_URL="https://github.com/$FRPW_REPO/releases/download/$FRPW_VERSION"
 # --- paid license gate ---------------------------------------------------------
 FRPW_LICENSE="${FRPW_LICENSE:-${FRPW_LICENSE_KEY:-}}"
 FRPW_LICENSE_PUBLIC_KEY="MrCLA8utGzPa5ysRO-0nVcxZ8Z7ZghS1J2SrdWTMwZI"
-EXPECTED_INSTALL_SHA256="27dbcf48e9f1c3de47807490c9733bc5e10705e41b062826aaa7b8c8e8c6a307"
+EXPECTED_INSTALL_SHA256="1c590fed7112a90e89881aeb446de2b12200fa4ea44f1408975d15b5d7c84001"
 EXPECTED_SUMS_SHA256="72bfe41a8c42247977a5a2785b072b57566e3bfaab812fc5a1265bfc6153865f"
 FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
 FRPW_MAX_TIME="${FRPW_MAX_TIME:-300}"
@@ -208,7 +209,9 @@ prepare_mirror() {
 
 main() {
     TMP_DIR="$(mktemp -d)"
-    verify_license
+    case "$COMPONENT" in
+        server) verify_license ;;
+    esac
     sums="$TMP_DIR/SHA256SUMS"
     installer="$TMP_DIR/install.sh"
     for base in $(mirror_bases); do

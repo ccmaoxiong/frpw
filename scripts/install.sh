@@ -19,9 +19,10 @@ FRPW_SERVICE_USER="${FRPW_SERVICE_USER:-frpw}"
 # Extra Environment= line injected into the systemd unit (server only).
 UNIT_ENVIRONMENT=""
 
-# --- paid license gate ---------------------------------------------------------
-# Install requires a signed license key (FRPW_LICENSE). Keys are issued by the
-# vendor; the script embeds only the Ed25519 public key and verifies locally.
+# --- paid license gate (server role only) --------------------------------------
+# Server installs require a signed license key (FRPW_LICENSE). Keys are issued
+# by the vendor; the script embeds only the Ed25519 public key and verifies
+# locally. Agent and remote Node installs are license-free.
 FRPW_LICENSE="${FRPW_LICENSE:-${FRPW_LICENSE_KEY:-}}"
 FRPW_LICENSE_PUBLIC_KEY="MrCLA8utGzPa5ysRO-0nVcxZ8Z7ZghS1J2SrdWTMwZI"
 
@@ -678,7 +679,9 @@ main() {
     [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only"
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
-    verify_license
+    case "$COMPONENT" in
+        server) verify_license ;;
+    esac
     if [ -n "$FRPW_LOCAL_DIR" ]; then
         log "installing from local release directory: $FRPW_LOCAL_DIR"
     else

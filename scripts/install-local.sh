@@ -5,21 +5,23 @@
 #   1. Download the release binaries anywhere (browser, another machine).
 #   2. Upload them to a directory on the target server together with
 #      SHA256SUMS and this script (install-local.sh) plus install.sh.
-#   3. Run:  sudo FRPW_LICENSE=FRPW-xxx... sh install-local.sh [server|node|agent]
+#   3. Run:  sudo sh install-local.sh [server|node|agent]
+#      (the server role additionally needs FRPW_LICENSE=FRPW-xxx...)
 #
-# No network access is needed on the target server. A signed license key is
-# still required: the script verifies FRPW_LICENSE locally against the
-# embedded Ed25519 public key before any file is touched. Every binary is
-# verified against SHA256SUMS before installation; any mismatch aborts the
-# install.
+# No network access is needed on the target server. Server installs require a
+# signed license key: the script verifies FRPW_LICENSE locally against the
+# embedded Ed25519 public key before any file is touched. Agent and remote
+# Node installs are license-free. Every binary is verified against
+# SHA256SUMS before installation; any mismatch aborts the install.
 set -eu
 
 COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
 FRPW_VERSION="${FRPW_VERSION:-v1.0.0}"
 
-# --- paid license gate ---------------------------------------------------------
-# Install requires a signed license key (FRPW_LICENSE). Keys are issued by the
-# vendor; the script embeds only the Ed25519 public key and verifies locally.
+# --- paid license gate (server role only) --------------------------------------
+# Server installs require a signed license key (FRPW_LICENSE). Keys are issued
+# by the vendor; the script embeds only the Ed25519 public key and verifies
+# locally. Agent and remote Node installs are license-free.
 FRPW_LICENSE="${FRPW_LICENSE:-${FRPW_LICENSE_KEY:-}}"
 FRPW_LICENSE_PUBLIC_KEY="MrCLA8utGzPa5ysRO-0nVcxZ8Z7ZghS1J2SrdWTMwZI"
 
@@ -158,7 +160,9 @@ fi
 RELEASE_DIR="${FRPW_RELEASE_DIR:-${SCRIPT_DIR:-$PWD}}"
 
 [ "$(uname -s)" = "Linux" ] || die "install-local.sh supports Linux only"
-verify_license
+case "$COMPONENT" in
+    server) verify_license ;;
+esac
 [ -d "$RELEASE_DIR" ] || die "release directory not found: $RELEASE_DIR"
 [ -f "$RELEASE_DIR/SHA256SUMS" ] || die "SHA256SUMS missing in $RELEASE_DIR (upload it together with the binaries)"
 [ -f "$RELEASE_DIR/install.sh" ] || die "install.sh missing in $RELEASE_DIR (upload it together with this script)"
