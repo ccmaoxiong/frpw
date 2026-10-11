@@ -25,3 +25,4 @@
 - Added the admin console license panel (`GET /admin/license`, `POST /admin/license/refresh`) showing state, customer, expiry, key fingerprint, revocation reason, and policy.
 - Published the signed revocation list `revocations.json` at the repository root; servers refresh it every 24 hours and instantly reject revoked keys.
 - Added an optional garble build (`scripts/build-release.ps1 -Garble`) that obfuscates literals and symbols for hardened releases.
+- `v1.0.0` assets were refreshed: the Linux server, Agent, and remote Node binaries are now garble-obfuscated (`-literals`), and the China installer pin for `SHA256SUMS` was updated accordingly.

@@ -195,10 +195,10 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 
 `v1.0.0` Release 包含：
 
-- Server：Linux amd64 / arm64
-- Agent：Linux amd64 / arm64
+- Server：Linux amd64 / arm64（garble 混淆，字符串与符号名已打乱）
+- Agent：Linux amd64 / arm64（garble 混淆）
 - Client：Windows amd64、Linux amd64 / arm64、macOS amd64 / arm64
-- Node：Linux amd64 / arm64
+- Node：Linux amd64 / arm64（garble 混淆）
 - `SHA256SUMS`
 - `install.sh`：标准云端一键安装脚本（需 `FRPW_LICENSE`）
 - `install-cn.sh`：国内镜像云端一键安装脚本（需 `FRPW_LICENSE`）
@@ -206,6 +206,8 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 - `revocations.json`：已吊销授权的签名列表（仓库根目录，服务端每 24 小时同步）
 
 所有发行二进制均提供 SHA-256 校验。安装脚本会在写入系统目录前验证下载文件。
+
+Linux 服务端组件的二进制经 garble 混淆，体积相应变大（server 约 43 MB），不影响功能与性能特性。
 
 ## 自建镜像
 
