@@ -26,3 +26,4 @@
 - Published the signed revocation list `revocations.json` at the repository root; servers refresh it every 24 hours and instantly reject revoked keys.
 - Added an optional garble build (`scripts/build-release.ps1 -Garble`) that obfuscates literals and symbols for hardened releases.
 - `v1.0.0` assets were refreshed: the Linux server, Agent, and remote Node binaries are now garble-obfuscated (`-literals`), and the China installer pin for `SHA256SUMS` was updated accordingly.
+- Extended the paid-distribution license gate to `install-local.sh`: offline installs now verify the Ed25519-signed `FRPW_LICENSE` before touching any file and pass the key through to `install.sh`.
