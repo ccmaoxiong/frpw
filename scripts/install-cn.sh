@@ -4,6 +4,10 @@ set -eu
 FRPW_VERSION="v1.0.0"
 FRPW_REPO="ccmaoxiong/frpw"
 FRPW_RELEASE_URL="https://github.com/$FRPW_REPO/releases/download/$FRPW_VERSION"
+
+# --- paid license gate ---------------------------------------------------------
+FRPW_LICENSE="${FRPW_LICENSE:-${FRPW_LICENSE_KEY:-}}"
+FRPW_LICENSE_PUBLIC_KEY="MrCLA8utGzPa5ysRO-0nVcxZ8Z7ZghS1J2SrdWTMwZI"
 EXPECTED_INSTALL_SHA256="2ea1c48cc18005dd55084382c0a8d55133fe23c7ed6ffd9a31272221d4e3406f"
 EXPECTED_SUMS_SHA256="b3664df870a959c7c3ac5c64d7269c4d05bf45e30dd8666a7d90b4afa76cb3bb"
 FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
@@ -82,6 +86,71 @@ download_file() {
     return 1
 }
 
+# --- license verification (same Ed25519 scheme as install.sh) ------------------
+
+b64url_decode() {
+    tr -d "~ \t\r\n" | tr "_-" "/+" | awk '{
+        mod = length($0) % 4
+        if (mod == 2) printf "%s==", $0
+        else if (mod == 3) printf "%s=", $0
+        else if (mod == 0) printf "%s", $0
+        else { printf "\ninvalid base64 length\n" > "/dev/stderr"; exit 1 }
+    }' | base64 -d 2>/dev/null
+}
+
+hex_to_binary() {
+    perl -ne 'chomp; print pack("H*", $_)'
+}
+
+verify_license() {
+    [ -n "$FRPW_LICENSE" ] || die "this is a paid distribution: set FRPW_LICENSE to your license key, for example
+  curl -fsSL <install-cn.sh URL> | sudo FRPW_LICENSE=FRPW-xxx... sh -s -- server
+Contact the vendor to purchase a license."
+    have base64 || die "base64 is required to verify the license"
+    have openssl || die "openssl is required to verify the license"
+    have perl || die "perl is required to verify the license"
+
+    key="$FRPW_LICENSE"
+    case "$(printf '%s' "$key" | tr "a-z" "A-Z")" in
+        FRPW-*) key="${key#?????}" ;;
+    esac
+    payload_b64="${key%%.*}"
+    sig_b64="${key#*.}"
+    [ "$payload_b64" != "$key" ] || die "invalid license key format"
+
+    TMP_LIC="$(mktemp -d)"
+    printf '%s' "$payload_b64" | b64url_decode > "$TMP_LIC/payload" \
+        || { rm -rf "$TMP_LIC"; die "license payload cannot be decoded"; }
+    [ -s "$TMP_LIC/payload" ] || { rm -rf "$TMP_LIC"; die "license payload cannot be decoded"; }
+    printf '%s' "$sig_b64" | b64url_decode > "$TMP_LIC/sig" \
+        || { rm -rf "$TMP_LIC"; die "license signature cannot be decoded"; }
+    [ "$(wc -c < "$TMP_LIC/sig" | tr -d " ")" = "64" ] || { rm -rf "$TMP_LIC"; die "license signature has an invalid length"; }
+
+    printf '%s' "$FRPW_LICENSE_PUBLIC_KEY" | b64url_decode | od -An -tx1 -v | tr -d " \n" > "$TMP_LIC/pub.hex"
+    {
+        printf '302a300506032b6570032100'
+        cat "$TMP_LIC/pub.hex"
+    } | hex_to_binary > "$TMP_LIC/pub.der"
+
+    if ! openssl pkeyutl -verify -pubin -keyform DER \
+            -inkey "$TMP_LIC/pub.der" -rawin \
+            -in "$TMP_LIC/payload" -sigfile "$TMP_LIC/sig" >/dev/null 2>&1; then
+        rm -rf "$TMP_LIC"
+        die "license signature verification failed (invalid or tampered key)"
+    fi
+
+    expires="$(cut -d"|" -f3 < "$TMP_LIC/payload")"
+    case "$expires" in
+        '' | *[!0-9]*) rm -rf "$TMP_LIC"; die "license expiry field is invalid" ;;
+    esac
+    now="$(date +%s)"
+    [ "$now" -le "$expires" ] || { rm -rf "$TMP_LIC"; die "license expired"; }
+
+    customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
+    rm -rf "$TMP_LIC"
+    log "license verified: $customer"
+}
+
 sha256_file() {
     file="$1"
     if have sha256sum; then
@@ -135,6 +204,7 @@ prepare_mirror() {
 
 main() {
     TMP_DIR="$(mktemp -d)"
+    verify_license
     sums="$TMP_DIR/SHA256SUMS"
     installer="$TMP_DIR/install.sh"
     for base in $(mirror_bases); do
