@@ -171,13 +171,17 @@ verify_sha256() {
 
 mirror_bases() {
     if [ -n "${FRPW_CN_MIRROR_BASE_URL:-}" ]; then
-        printf '%s\n' "${FRPW_CN_MIRROR_BASE_URL%/}"
+        # Accept one or more space-separated bases; each is tried in order.
+        for base in $FRPW_CN_MIRROR_BASE_URL; do
+            printf '%s\n' "${base%/}"
+        done
         return
     fi
     printf '%s\n' \
         "https://ghfast.top/$FRPW_RELEASE_URL" \
         "https://gh-proxy.com/$FRPW_RELEASE_URL" \
         "https://ghproxy.net/$FRPW_RELEASE_URL" \
+        "https://gh.acmsz.top/$FRPW_RELEASE_URL" \
         "$FRPW_RELEASE_URL"
 }
 
