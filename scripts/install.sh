@@ -7,7 +7,6 @@ FRPW_VERSION="${FRPW_VERSION:-v1.0.0}"
 FRPW_GITHUB_API_URL="${FRPW_GITHUB_API_URL:-https://api.github.com}"
 FRPW_GITHUB_DOWNLOAD_URL="${FRPW_GITHUB_DOWNLOAD_URL:-https://github.com}"
 FRPW_DOWNLOAD_BASE_URL="${FRPW_DOWNLOAD_BASE_URL:-}"
-FRPW_LOCAL_DIR="${FRPW_LOCAL_DIR:-}"
 FRPW_TOKEN="${FRPW_TOKEN:-${GITHUB_TOKEN:-}}"
 FRPW_USE_GITHUB_API="${FRPW_USE_GITHUB_API:-}"
 FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
@@ -221,28 +220,9 @@ asset_id() {
     '
 }
 
-# Local/offline install: when the script sits next to the release binaries
-# (or FRPW_LOCAL_DIR points at them), skip all downloads and install from
-# disk after the same SHA256 verification used for remote downloads.
-if [ -z "$FRPW_LOCAL_DIR" ] && [ -n "${0:-}" ] && [ -f "$0" ]; then
-    candidate="$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || true)"
-    if [ -n "$candidate" ] && [ -f "$candidate/SHA256SUMS" ] && [ -f "$candidate/frpw-server-$FRPW_VERSION-linux-amd64" ]; then
-        FRPW_LOCAL_DIR="$candidate"
-    fi
-fi
-if [ -n "$FRPW_LOCAL_DIR" ]; then
-    [ -d "$FRPW_LOCAL_DIR" ] || die "FRPW_LOCAL_DIR is not a directory: $FRPW_LOCAL_DIR"
-    [ -f "$FRPW_LOCAL_DIR/SHA256SUMS" ] || die "FRPW_LOCAL_DIR is missing SHA256SUMS: $FRPW_LOCAL_DIR"
-fi
-
 download_asset() {
     asset_name="$1"
     destination="$2"
-    if [ -n "$FRPW_LOCAL_DIR" ]; then
-        [ -f "$FRPW_LOCAL_DIR/$asset_name" ] || die "local release asset missing: $FRPW_LOCAL_DIR/$asset_name"
-        cp -f "$FRPW_LOCAL_DIR/$asset_name" "$destination"
-        return
-    fi
     download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
     if [ -n "$download_base" ]; then
         download_file "$download_base/$asset_name" "$destination"
@@ -286,11 +266,6 @@ checksum_for_asset() {
 download_checksums() {
     destination="$1"
     manifest_asset="frpw-server-$FRPW_VERSION-linux-amd64"
-    if [ -n "$FRPW_LOCAL_DIR" ]; then
-        cp -f "$FRPW_LOCAL_DIR/SHA256SUMS" "$destination"
-        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "local SHA256SUMS is invalid"
-        return
-    fi
     download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
     if [ -n "$download_base" ]; then
         download_file "$download_base/SHA256SUMS" "$destination"
@@ -591,11 +566,7 @@ main() {
     [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only"
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
-    if [ -n "$FRPW_LOCAL_DIR" ]; then
-        log "installing from local release directory: $FRPW_LOCAL_DIR"
-    else
-        load_release
-    fi
+    load_release
     download_checksums "$TMP_DIR/SHA256SUMS"
 
     case "$COMPONENT" in
