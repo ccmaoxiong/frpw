@@ -38,10 +38,27 @@ FRPW-xxxxxxxx~xxxxxxxx~xxxx~........
 
 校验过程完全离线，不联网、不上传任何信息。密钥自带有效期，到期后重新签发即可续费。
 
+### 服务端运行期授权
+
+安装脚本负责安装期拦截，服务端二进制在运行期继续复验同一枚密钥：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `FRPW_LICENSE` | 空 | 内联授权密钥，优先级最高 |
+| `FRPW_LICENSE_FILE` | `/etc/frpw/license.key` | 服务端启动时读取的密钥文件；一键安装会自动写入并注入 systemd |
+| `FRPW_LICENSE_ENFORCEMENT` | `degrade` | `degrade`：过期/被吊销时仍启动但降级（新隧道上限 1 条、禁止新建订单）；`strict`：直接拒绝启动 |
+| `FRPW_REVOCATION_URL` | 本仓库 main 分支的 `revocations.json` | 签名吊销列表，服务端每 24 小时同步一次 |
+
+服务端启动时若密钥缺失或签名不符会直接退出，运行期每 6 小时重新验签。授权状态（`active` / `expiring` /
+`expired` / `revoked` / `missing` / `invalid`）、客户名、到期日、密钥指纹和当前策略可在管理后台的
+「授权与许可」面板查看，并可点击「重新校验」立即复验。请勿手工修改 `/etc/frpw/license.key` 或外传密钥。
+
 ## 一键安装服务端
 
 支持 Linux amd64 / arm64。云主机使用 `root` 或具有 `sudo` 权限的账号执行，
 把 `FRPW-你的授权密钥` 替换为实际密钥：
+
+发行包为付费授权发行：安装脚本在下载任何文件之前先验签授权密钥（`FRPW_LICENSE`，旧名 `FRPW_LICENSE_KEY`），密钥缺失、过期或签名不符即终止。Server、Agent、Node 三个角色都需提供密钥。
 
 ```bash
 curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.0" -o /tmp/frpw-install.sh && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install.sh server
@@ -186,6 +203,7 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 - `install.sh`：标准云端一键安装脚本（需 `FRPW_LICENSE`）
 - `install-cn.sh`：国内镜像云端一键安装脚本（需 `FRPW_LICENSE`）
 - `install-local.sh`：离线安装脚本，用于无法访问外网的服务器（需 `FRPW_LICENSE`）
+- `revocations.json`：已吊销授权的签名列表（仓库根目录，服务端每 24 小时同步）
 
 所有发行二进制均提供 SHA-256 校验。安装脚本会在写入系统目录前验证下载文件。
 
