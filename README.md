@@ -56,8 +56,8 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frp
 ### 国内镜像一键安装
 
 国内网络推荐使用专用安装器（强制 IPv4，安装器内部自动在 `ghfast.top`、
-`gh-proxy.com` 和 `ghproxy.net` 之间切换镜像，并在下载前先校验授权密钥、
-下载后校验 `SHA256SUMS`）：
+`gh-proxy.com`、`ghproxy.net` 和 `gh.acmsz.top` 之间切换镜像，并在下载前先
+校验授权密钥、下载后校验 `SHA256SUMS`）：
 
 ```bash
 curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.0/scripts/install-cn.sh" && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
@@ -70,7 +70,19 @@ curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/f
 ```
 
 安装 Agent 或远程节点时，把最后的 `server` 改为 `agent` 或 `node`，并按下方说明
-提供对应的 `FRPW_*` 环境变量。也可通过 `FRPW_CN_MIRROR_BASE_URL` 指定自建国内镜像。
+提供对应的 `FRPW_*` 环境变量。
+
+如果内置镜像全部不可达（网络干扰时常见 `Empty reply from server` 或
+`Connection reset`），可以先在服务器上测速，再用 `FRPW_CN_MIRROR_BASE_URL`
+指定可用镜像。该变量支持多个镜像（空格分隔），按顺序尝试：
+
+```bash
+for m in https://ghfast.top https://gh-proxy.com https://ghproxy.net https://gh.acmsz.top; do printf "%s -> " "$m"; curl -4 --http1.1 -fsSL --connect-timeout 8 --max-time 20 -o /dev/null -w "%{http_code}\n" "$m/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0/SHA256SUMS" 2>/dev/null || echo FAIL; done
+```
+
+```bash
+sudo FRPW_CN_MIRROR_BASE_URL="https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0 https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0" FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
+```
 
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
@@ -179,6 +191,8 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 
 ## 自建镜像
 
+### 标准安装脚本（install.sh）
+
 如果使用对象存储、CDN 或内网软件源，可以设置：
 
 ```bash
@@ -186,7 +200,24 @@ export FRPW_DOWNLOAD_BASE_URL="https://download.example.com/frpw/v1.0.0"
 ```
 
 该目录需要包含 Release 中的二进制与 `SHA256SUMS`。使用自建镜像时安装脚本不再访问 GitHub。
-无论使用何种镜像，授权密钥校验都在本地完成且始终开启。
+
+### 国内安装器（install-cn.sh）
+
+`FRPW_CN_MIRROR_BASE_URL` 可指向自建镜像或任意可用的 GitHub 代理前缀，
+支持多个值（空格分隔，按顺序尝试，任一成功即继续安装）：
+
+```bash
+export FRPW_CN_MIRROR_BASE_URL="https://mirror.example.com/frpw/v1.0.0 https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.0"
+```
+
+每个镜像必须能提供：
+
+- `SHA256SUMS`：其文件自身的 SHA-256 必须与安装器内置的期望值一致
+  （防止镜像被篡改或缓存过期）
+- `install.sh`：其 SHA-256 同样会被安装器校验后才会执行
+
+镜像缓存了旧版本文件时会验证失败并自动切换到下一个镜像；可等待镜像刷新
+或改用其它镜像。无论使用何种镜像，授权密钥校验都在本地完成且始终开启。
 
 安装器默认直接读取公开 Release，不依赖 GitHub API。仅在私有发行或显式设置
 `FRPW_USE_GITHUB_API=1` 时，才先请求 GitHub API；拥有仓库读取权限时可同时
