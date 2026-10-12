@@ -10,6 +10,7 @@
 - Reorganized the platform admin console into grouped sidebar pages: 业务运营 (运营工作台 / 站点公告 / 数据用量 / 工单管理), 客户与资源 (用户管理 / 实例管理 / 节点中心), 商业化 (套餐管理 / 订单与收款 / 卡密兑换), 系统 (系统配置 / 通知与投递) and 账号安全 (管理员账号). Each former in-page tab is now a first-class page with its own header; the workbench keeps the KPI dashboard plus deep-link tiles, and 卡密兑换 opens the settings console with the redeem category selected.
 - Ships the announcement, daily check-in and site usage-recording systems that were hot-updated into the v1.0.0 assets; see the v1.0.0 entries below for the full behaviour.
 - Repinned the China installer to the v1.0.1 assets and bumped the default install version to `v1.0.1`.
+- The console sidebar and every sign-in screen (user console and admin entry) now end with a `v1.0.1 · by ccmaoxiong` credit line linking to the author's GitHub profile; the admin login page previously showed no version at all.
 
 ## v1.0.0 - 2026-10-05
 
