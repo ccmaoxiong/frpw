@@ -16,7 +16,7 @@
 set -eu
 
 COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
-FRPW_VERSION="${FRPW_VERSION:-v1.0.0}"
+FRPW_VERSION="${FRPW_VERSION:-v1.0.1}"
 
 # --- paid license gate (server role only) --------------------------------------
 # Server installs require a signed license key (FRPW_LICENSE). Keys are issued
