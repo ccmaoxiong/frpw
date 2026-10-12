@@ -244,6 +244,26 @@ export FRPW_CN_MIRROR_BASE_URL="https://mirror.example.com/frpw/v1.0.1 https://g
 镜像缓存了旧版本文件时会验证失败并自动切换到下一个镜像；可等待镜像刷新
 或改用其它镜像。无论使用何种镜像，授权密钥校验都在本地完成；该校验只针对 Server 安装，Agent 与远程节点不校验授权。
 
+### 面板内在线更新（管理后台 → 系统配置 → 版本更新）
+
+Linux 服务端支持在管理后台直接升级：读取发行信息、下载对应架构的 server 二进制、对照
+`SHA256SUMS` 校验后替换自身并重启，旧版本备份为 `.bak`。该功能需要访问 `api.github.com`
+（发行信息）与 `github.com`（下载二进制），国内服务器可改写：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `FRPW_UPDATE_REPO` | `ccmaoxiong/frpw` | 发行仓库 `owner/repo` |
+| `FRPW_UPDATE_API_BASE` | `https://api.github.com` | 发行信息 API 根地址，可指向代理或自建镜像 |
+| `FRPW_UPDATE_MIRRORS` | 空 | 二进制约包镜像前缀，空格分隔、按顺序尝试，最后回退直连 GitHub |
+
+```bash
+FRPW_UPDATE_API_BASE="https://gh-proxy.com/https://api.github.com"
+FRPW_UPDATE_MIRRORS="https://ghfast.top https://gh-proxy.com"
+```
+
+镜像返回的内容同样要能通过 `SHA256SUMS` 校验，否则自动换下一个源；全部失败时不会写入任何文件。
+Windows 与本地直接运行的环境不支持面板内更新（无法替换运行中的可执行文件），请重新运行安装脚本升级。
+
 安装器默认直接读取公开 Release，不依赖 GitHub API。仅在私有发行或显式设置
 `FRPW_USE_GITHUB_API=1` 时，才先请求 GitHub API；拥有仓库读取权限时可同时
 设置 `FRPW_TOKEN`。

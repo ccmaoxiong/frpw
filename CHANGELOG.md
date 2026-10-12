@@ -11,6 +11,8 @@
 - Ships the announcement, daily check-in and site usage-recording systems that were hot-updated into the v1.0.0 assets; see the v1.0.0 entries below for the full behaviour.
 - Repinned the China installer to the v1.0.1 assets and bumped the default install version to `v1.0.1`.
 - The console sidebar and every sign-in screen (user console and admin entry) now end with a `v1.0.1 · by ccmaoxiong` credit line linking to the author's GitHub profile; the admin login page previously showed no version at all.
+- Fixed the admin console update dialog: it used to claim "发现新版本" even when the running build was already the latest release, because the unsupported-environment branch unconditionally overwrote the result block. Branches are now mutually exclusive and each renders a distinct message.
+- The in-panel updater can now be pointed at a proxy or self-hosted mirror via `FRPW_UPDATE_API_BASE`, `FRPW_UPDATE_MIRRORS` and `FRPW_UPDATE_REPO`; mirror downloads are tried in order, fall back to the canonical GitHub URL and must still match `SHA256SUMS`.
 
 ## v1.0.0 - 2026-10-05
 
