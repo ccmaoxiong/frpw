@@ -1,7 +1,7 @@
 # FRPW
 
 ![Closed Source](https://img.shields.io/badge/source-closed--source-111111)
-![Release](https://img.shields.io/badge/release-v1.0.1-2563eb)
+![Release](https://img.shields.io/badge/release-v1.0.2-2563eb)
 ![Platform](https://img.shields.io/badge/platform-Linux%20Server%20%7C%20Cross--platform%20Client-0f766e)
 ![License](https://img.shields.io/badge/license-commercial-dc2626)
 
@@ -10,7 +10,7 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 
 服务端安装需要有效的**授权密钥**（`FRPW_LICENSE`），获取方式见下方「授权说明」；Agent、远程节点与客户端不需要授权密钥。
 
-## v1.0.1 功能
+## v1.0.2 功能
 
 - 管理后台按业务分组重排：业务运营 / 客户与资源 / 商业化 / 系统 / 账号安全，每个模块独立成页
 - HTTP、TCP、UDP 隧道与公网端口映射
@@ -21,6 +21,9 @@ FRPW 是面向内网穿透、端口映射和多节点转发的商业化管理平
 - 站内公告与签到激励：公告带未读角标与已读跟踪，每日签到奖励自动入账余额
 - 站点用量记录：按天 / 隧道 / 节点 / 租户聚合的流量与请求统计，用户端和管理后台都有数据面板
 - 码支付主通道、备用通道、Webhook 与线下汇款
+- 实名认证：用户端提交姓名与身份证号，管理端审核；支持阿里云 APPCODE / 阿里云 CloudAuth / 腾讯云 / 聚合数据 / 通用 JSON 五种通道，可按策略强制新建隧道前完成认证
+- 邮箱验证码注册与找回密码、邀请码开关、独立 SMTP 配置和验证码邮件模板
+- 安装器交互式下载进度条与服务端授权信息展示（客户、套餐、到期日、剩余天数、签名状态）
 - Windows、Linux、macOS 图形客户端发行包
 - 服务端和客户端 SHA-256 完整性校验
 - 管理端、用户端与登录页底部显示当前版本号并链接作者 GitHub（ccmaoxiong）
@@ -66,13 +69,13 @@ FRPW-xxxxxxxx~xxxxxxxx~xxxx~........
 发行包为付费授权发行：**服务端**安装脚本在下载任何文件之前先验签授权密钥（`FRPW_LICENSE`，旧名 `FRPW_LICENSE_KEY`），密钥缺失、过期或签名不符即终止。Agent、远程节点与客户端不需要授权密钥。
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.1" -o /tmp/frpw-install.sh && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.2" -o /tmp/frpw-install.sh && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install.sh server
 ```
 
 如果当前网络的流式下载经常中断，也可以先保存脚本再执行：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1/install.sh -o /tmp/frpw-install.sh && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2/install.sh -o /tmp/frpw-install.sh && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install.sh server
 ```
 
 ### 国内镜像一键安装
@@ -82,34 +85,36 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 https://github.com/ccmaoxiong/frp
 校验授权密钥（仅服务端角色）、下载后校验 `SHA256SUMS`）：
 
 ```bash
-curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.1/scripts/install-cn.sh" && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.2/scripts/install-cn.sh" && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
 ```
 
 raw 入口不通时改用 ghfast 镜像：
 
 ```bash
-curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1/install-cn.sh" && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2/install-cn.sh" && sudo FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
 ```
 
 安装 Agent 或远程节点时，把最后的 `server` 改为 `agent` 或 `node`，并按下方说明
 提供对应的 `FRPW_*` 环境变量。
+
+> 服务端安装器验签通过后会打印授权信息（客户、套餐、到期日期、剩余天数、签名状态）。下载 Release 二进制时，交互式终端会显示百分比进度条；通过管道或重定向记录日志时自动保持静默，也可设置 `FRPW_NO_PROGRESS=1` 强制关闭。
 
 如果内置镜像全部不可达（网络干扰时常见 `Empty reply from server` 或
 `Connection reset`），可以先在服务器上测速，再用 `FRPW_CN_MIRROR_BASE_URL`
 指定可用镜像。该变量支持多个镜像（空格分隔），按顺序尝试：
 
 ```bash
-for m in https://ghfast.top https://gh-proxy.com https://ghproxy.net https://gh.acmsz.top; do printf "%s -> " "$m"; curl -4 --http1.1 -fsSL --connect-timeout 8 --max-time 20 -o /dev/null -w "%{http_code}\n" "$m/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1/SHA256SUMS" 2>/dev/null || echo FAIL; done
+for m in https://ghfast.top https://gh-proxy.com https://ghproxy.net https://gh.acmsz.top; do printf "%s -> " "$m"; curl -4 --http1.1 -fsSL --connect-timeout 8 --max-time 20 -o /dev/null -w "%{http_code}\n" "$m/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2/SHA256SUMS" 2>/dev/null || echo FAIL; done
 ```
 
 ```bash
-sudo FRPW_CN_MIRROR_BASE_URL="https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1 https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1" FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
+sudo FRPW_CN_MIRROR_BASE_URL="https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2 https://gh-proxy.com/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2" FRPW_LICENSE="FRPW-你的授权密钥" sh /tmp/frpw-install-cn.sh server
 ```
 
 生产环境建议同时指定公网 Agent 地址、基础域名和公网 HTTP 端口：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.1" -o /tmp/frpw-install.sh && sudo env FRPW_LICENSE="FRPW-你的授权密钥" FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" FRPW_BASE_DOMAIN="example.com" FRPW_PUBLIC_HTTP_PORT="8080" sh /tmp/frpw-install.sh server
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.2" -o /tmp/frpw-install.sh && sudo env FRPW_LICENSE="FRPW-你的授权密钥" FRPW_AGENT_PUBLIC_ADDR="tunnel.example.com:7000" FRPW_BASE_DOMAIN="example.com" FRPW_PUBLIC_HTTP_PORT="8080" sh /tmp/frpw-install.sh server
 ```
 
 安装完成后：
@@ -125,13 +130,13 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 ### 安装 Agent（国内）
 
 ```bash
-curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.1/scripts/install-cn.sh" && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install-cn.sh agent
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.2/scripts/install-cn.sh" && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install-cn.sh agent
 ```
 
 ### 安装远程节点（国内）
 
 ```bash
-curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.1/scripts/install-cn.sh" && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install-cn.sh node
+curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/frpw-install-cn.sh "https://raw.githubusercontent.com/ccmaoxiong/frpw/v1.0.2/scripts/install-cn.sh" && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install-cn.sh node
 ```
 
 ## 安装 Agent
@@ -139,13 +144,13 @@ curl -4 --http1.1 -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -o /tmp/f
 Agent 服务端仅支持 Linux。在需要发布内网服务的 Linux 机器上执行：
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.1" -o /tmp/frpw-install.sh && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install.sh agent
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.2" -o /tmp/frpw-install.sh && sudo env FRPW_SERVER="tunnel.example.com:7000" FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_AGENT_TOKEN="管理端生成的令牌" FRPW_AGENT_ID="office-pc" sh /tmp/frpw-install.sh agent
 ```
 
 ## 安装远程节点
 
 ```bash
-curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.1" -o /tmp/frpw-install.sh && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install.sh node
+curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/ccmaoxiong/frpw/contents/scripts/install.sh?ref=v1.0.2" -o /tmp/frpw-install.sh && sudo env FRPW_CONTROL_PLANE="http://console.example.com:9000" FRPW_NODE_TOKEN="节点创建时显示的令牌" FRPW_NODE_AGENT_ADDR=":7000" FRPW_NODE_PUBLIC_HTTP_PORT="8080" FRPW_NODE_BASE_DOMAIN="edge.example.com" sh /tmp/frpw-install.sh node
 ```
 
 ## 离线安装（服务器无法访问外网）
@@ -155,15 +160,15 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 
 1. 在能上网的机器下载以下文件（无需全部，按需选择）：
 
-   - 必需：`install.sh`、`install-local.sh`、`SHA256SUMS`、`frpw-server-v1.0.1-linux-<arch>`
-   - 可选（用户端「客户端接入」下载功能需要）：`frpw-client-v1.0.1-*`、`frpw-node-v1.0.1-linux-<arch>`
+   - 必需：`install.sh`、`install-local.sh`、`SHA256SUMS`、`frpw-server-v1.0.2-linux-<arch>`
+   - 可选（用户端「客户端接入」下载功能需要）：`frpw-client-v1.0.2-*`、`frpw-node-v1.0.2-linux-<arch>`
 
-   下载地址：<https://github.com/ccmaoxiong/frpw/releases/tag/v1.0.1>
+   下载地址：<https://github.com/ccmaoxiong/frpw/releases/tag/v1.0.2>
 
 2. 上传到服务器同一目录，例如 `/root/frpw/`：
 
    ```bash
-   scp install.sh install-local.sh SHA256SUMS frpw-server-v1.0.1-linux-amd64 root@<服务器IP>:/root/frpw/
+   scp install.sh install-local.sh SHA256SUMS frpw-server-v1.0.2-linux-amd64 root@<服务器IP>:/root/frpw/
    ```
 
 3. 在服务器上的该目录内执行（ARM 服务器把文件名换成 `-arm64` 版本）：
@@ -198,7 +203,7 @@ curl --http1.1 -fsSL --retry 5 --retry-delay 2 --connect-timeout 15 -H "Accept: 
 
 ## 发行文件
 
-`v1.0.1` Release 包含：
+`v1.0.2` Release 包含：
 
 - Server：Linux amd64 / arm64（garble 混淆，字符串与符号名已打乱）
 - Agent：Linux amd64 / arm64（garble 混淆）
@@ -221,7 +226,7 @@ Linux 服务端组件的二进制经 garble 混淆，体积相应变大（server
 如果使用对象存储、CDN 或内网软件源，可以设置：
 
 ```bash
-export FRPW_DOWNLOAD_BASE_URL="https://download.example.com/frpw/v1.0.1"
+export FRPW_DOWNLOAD_BASE_URL="https://download.example.com/frpw/v1.0.2"
 ```
 
 该目录需要包含 Release 中的二进制与 `SHA256SUMS`。使用自建镜像时安装脚本不再访问 GitHub。
@@ -232,7 +237,7 @@ export FRPW_DOWNLOAD_BASE_URL="https://download.example.com/frpw/v1.0.1"
 支持多个值（空格分隔，按顺序尝试，任一成功即继续安装）：
 
 ```bash
-export FRPW_CN_MIRROR_BASE_URL="https://mirror.example.com/frpw/v1.0.1 https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.1"
+export FRPW_CN_MIRROR_BASE_URL="https://mirror.example.com/frpw/v1.0.2 https://ghfast.top/https://github.com/ccmaoxiong/frpw/releases/download/v1.0.2"
 ```
 
 每个镜像必须能提供：

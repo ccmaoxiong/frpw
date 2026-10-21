@@ -2,15 +2,15 @@
 set -eu
 
 COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
-FRPW_VERSION="v1.0.1"
+FRPW_VERSION="v1.0.2"
 FRPW_REPO="ccmaoxiong/frpw"
 FRPW_RELEASE_URL="https://github.com/$FRPW_REPO/releases/download/$FRPW_VERSION"
 
 # --- paid license gate ---------------------------------------------------------
 FRPW_LICENSE="${FRPW_LICENSE:-${FRPW_LICENSE_KEY:-}}"
 FRPW_LICENSE_PUBLIC_KEY="MrCLA8utGzPa5ysRO-0nVcxZ8Z7ZghS1J2SrdWTMwZI"
-EXPECTED_INSTALL_SHA256="4ae1fc13ca1caf23b187c1e078ebe816cd22e1926d15fcf165beebd85522216a"
-EXPECTED_SUMS_SHA256="c5bd42b470fe6a47f8b4cdda44ed5124f960207723d1b3881500245806275617"
+EXPECTED_INSTALL_SHA256="a8f2b0a51324bd12c3ab794b76fa20aa30fc0d9e5082bc113157f8ddf6c4b5cc"
+EXPECTED_SUMS_SHA256="32db44bfdd11e45f5db71b00aab4738438c1080bc3f0e4ddb9ac2b65f4854461"
 FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
 FRPW_MAX_TIME="${FRPW_MAX_TIME:-300}"
 FRPW_RETRIES="${FRPW_RETRIES:-5}"
@@ -100,7 +100,13 @@ b64url_decode() {
 }
 
 hex_to_binary() {
+    # portable hex -> binary; perl is available wherever openssl is
     perl -ne 'chomp; print pack("H*", $_)'
+}
+
+epoch_date() {
+    # GNU date, BSD date, then the raw epoch as a last resort (busybox).
+    date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null || printf '%s' "$1"
 }
 
 verify_license() {
@@ -148,8 +154,24 @@ Contact the vendor to purchase a license."
     [ "$now" -le "$expires" ] || { rm -rf "$TMP_LIC"; die "license expired"; }
 
     customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
+    plan="$(cut -d"|" -f5 < "$TMP_LIC/payload")"
+    max_installs="$(cut -d"|" -f4 < "$TMP_LIC/payload")"
+    key_version="$(cut -d"|" -f1 < "$TMP_LIC/payload")"
+    expires_date="$(epoch_date "$expires")"
+    days_left=$(( (expires - now + 86399) / 86400 ))
+    max_display="${max_installs:-unlimited}"
+    [ "$max_display" != "0" ] || max_display="unlimited"
     rm -rf "$TMP_LIC"
-    log "license verified: $customer"
+
+    printf '%s\n' ""
+    log "license verified - paid distribution"
+    printf '    %-14s %s\n' "Key version:" "${key_version:-n/a}"
+    printf '    %-14s %s\n' "Customer:" "${customer:-n/a}"
+    printf '    %-14s %s\n' "Plan:" "${plan:-standard}"
+    printf '    %-14s %s\n' "Valid until:" "$expires_date ($days_left days left)"
+    printf '    %-14s %s\n' "Max installs:" "$max_display"
+    printf '    %-14s %s\n' "Signature:" "Ed25519 verified"
+    printf '%s\n' ""
 }
 
 sha256_file() {
@@ -208,10 +230,10 @@ prepare_mirror() {
 }
 
 main() {
-    TMP_DIR="$(mktemp -d)"
     case "$COMPONENT" in
         server) verify_license ;;
     esac
+    TMP_DIR="$(mktemp -d)"
     sums="$TMP_DIR/SHA256SUMS"
     installer="$TMP_DIR/install.sh"
     for base in $(mirror_bases); do
@@ -219,7 +241,8 @@ main() {
         log "trying China mirror: $base"
         if prepare_mirror "$base" "$sums" "$installer"; then
             log "using verified mirror: $base"
-            FRPW_DOWNLOAD_BASE_URL="$base" \
+            FRPW_LICENSE_INFO_SHOWN=1 \
+                FRPW_DOWNLOAD_BASE_URL="$base" \
                 FRPW_USE_GITHUB_API=0 \
                 FRPW_VERSION="$FRPW_VERSION" \
                 sh "$installer" "$@"

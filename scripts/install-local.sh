@@ -16,7 +16,7 @@
 set -eu
 
 COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
-FRPW_VERSION="${FRPW_VERSION:-v1.0.1}"
+FRPW_VERSION="${FRPW_VERSION:-v1.0.2}"
 
 # --- paid license gate (server role only) --------------------------------------
 # Server installs require a signed license key (FRPW_LICENSE). Keys are issued
@@ -99,6 +99,11 @@ hex_to_binary() {
     perl -ne 'chomp; print pack("H*", $_)'
 }
 
+epoch_date() {
+    # GNU date, BSD date, then the raw epoch as a last resort (busybox).
+    date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null || printf '%s' "$1"
+}
+
 verify_license() {
     [ -n "$FRPW_LICENSE" ] || die "this is a paid distribution: set FRPW_LICENSE to your license key, for example
   sudo FRPW_LICENSE=FRPW-xxx... sh install-local.sh server
@@ -145,10 +150,25 @@ Contact the vendor to purchase a license."
     [ "$now" -le "$expires" ] || die "license expired on $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null || printf '%s' "$expires")"
 
     customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
+    plan="$(cut -d"|" -f5 < "$TMP_LIC/payload")"
     max_installs="$(cut -d"|" -f4 < "$TMP_LIC/payload")"
-    log "license verified: $customer (expires $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null), max installs: ${max_installs:-unlimited})"
+    key_version="$(cut -d"|" -f1 < "$TMP_LIC/payload")"
+    expires_date="$(epoch_date "$expires")"
+    days_left=$(( (expires - now + 86399) / 86400 ))
+    max_display="${max_installs:-unlimited}"
+    [ "$max_display" != "0" ] || max_display="unlimited"
     rm -rf "$TMP_LIC"
     trap - EXIT HUP INT TERM
+
+    printf '%s\n' ""
+    log "license verified - paid distribution"
+    printf '    %-14s %s\n' "Key version:" "${key_version:-n/a}"
+    printf '    %-14s %s\n' "Customer:" "${customer:-n/a}"
+    printf '    %-14s %s\n' "Plan:" "${plan:-standard}"
+    printf '    %-14s %s\n' "Valid until:" "$expires_date ($days_left days left)"
+    printf '    %-14s %s\n' "Max installs:" "$max_display"
+    printf '    %-14s %s\n' "Signature:" "Ed25519 verified"
+    printf '%s\n' ""
 }
 
 # The release directory defaults to the directory containing this script so
@@ -206,4 +226,4 @@ if [ -n "$MISSING_OPTIONAL" ]; then
 fi
 
 log "installing FRPW $COMPONENT $FRPW_VERSION (offline mode)"
-FRPW_LICENSE="$FRPW_LICENSE" FRPW_LOCAL_DIR="$RELEASE_DIR" FRPW_VERSION="$FRPW_VERSION" sh "$RELEASE_DIR/install.sh" "$COMPONENT"
+FRPW_LICENSE_INFO_SHOWN=1 FRPW_LICENSE="$FRPW_LICENSE" FRPW_LOCAL_DIR="$RELEASE_DIR" FRPW_VERSION="$FRPW_VERSION" sh "$RELEASE_DIR/install.sh" "$COMPONENT"

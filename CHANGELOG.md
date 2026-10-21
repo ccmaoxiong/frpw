@@ -5,6 +5,17 @@
 
 
 
+## v1.0.2 - 2026-10-21
+
+- Added real-name identity verification for tenants. The user console has a dedicated 实名认证 page (name + national ID, status, rejection reason); the admin console can enable verification, require it before creating tunnels, review submissions, approve/reject them, and delete records. Enforcement applies to new tunnel definitions only and never stops existing tunnels.
+- Added five identity-provider protocols: Alibaba Cloud Marketplace APPCODE, Alibaba Cloud CloudAuth RPC (Id2MetaVerify), Tencent Cloud IAI IdCardVerification, Juhe ID-card query, and a generic JSON gateway with configurable success field/value. Provider secrets are redacted in the admin console; ID numbers are stored as a peppered digest plus a masked display value.
+- Fixed email delivery readiness so the dedicated SMTP configuration counts as a usable channel even when no generic notification channel is enabled; registration no longer reports "邮件服务未配置" on SMTP-only deployments. Mail template validation now runs before either setting is persisted, so an invalid template cannot leave a half-saved SMTP configuration.
+- Fixed remote-node heartbeats: a definition refresh now reconnects only Agents whose live routes actually differ from the desired set. Previously every refresh called DisconnectAll and could kick healthy Agents, including ones that had just come online.
+- Fixed the admin instance dashboard agent count to deduplicate local and remote Agents and to count only the current tenant's online tunnels.
+- Fixed user-console issues: a white screen caused by an undefined identity state, ticket reply/status requests using the wrong path or HTTP method, same-page navigation not refreshing stale data, and misleading email-readiness text.
+- Installer: interactive terminals now show a download progress bar for Release assets (`FRPW_NO_PROGRESS=1` disables it), and server installs print the verified license block (customer, plan, expiry, remaining days, max installs, signature). The China and offline installers print the same block; temporary-directory cleanup is restored.
+- Bumped the default install version to `v1.0.2` and repinned `install-cn.sh` to the v1.0.2 `SHA256SUMS` and `install.sh`.
+
 ## v1.0.1 - 2026-10-12
 
 - Reorganized the platform admin console into grouped sidebar pages: 业务运营 (运营工作台 / 站点公告 / 数据用量 / 工单管理), 客户与资源 (用户管理 / 实例管理 / 节点中心), 商业化 (套餐管理 / 订单与收款 / 卡密兑换), 系统 (系统配置 / 通知与投递) and 账号安全 (管理员账号). Each former in-page tab is now a first-class page with its own header; the workbench keeps the KPI dashboard plus deep-link tiles, and 卡密兑换 opens the settings console with the redeem category selected.

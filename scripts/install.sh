@@ -3,7 +3,7 @@ set -eu
 
 COMPONENT="${1:-${FRPW_COMPONENT:-server}}"
 FRPW_REPO="${FRPW_REPO:-ccmaoxiong/frpw}"
-FRPW_VERSION="${FRPW_VERSION:-v1.0.1}"
+FRPW_VERSION="${FRPW_VERSION:-v1.0.2}"
 FRPW_GITHUB_API_URL="${FRPW_GITHUB_API_URL:-https://api.github.com}"
 FRPW_GITHUB_DOWNLOAD_URL="${FRPW_GITHUB_DOWNLOAD_URL:-https://github.com}"
 FRPW_DOWNLOAD_BASE_URL="${FRPW_DOWNLOAD_BASE_URL:-}"
@@ -13,6 +13,7 @@ FRPW_USE_GITHUB_API="${FRPW_USE_GITHUB_API:-}"
 FRPW_CONNECT_TIMEOUT="${FRPW_CONNECT_TIMEOUT:-15}"
 FRPW_MAX_TIME="${FRPW_MAX_TIME:-600}"
 FRPW_RETRIES="${FRPW_RETRIES:-5}"
+FRPW_NO_PROGRESS="${FRPW_NO_PROGRESS:-0}"
 RELEASE_JSON=""
 FRPW_SERVICE_USER="${FRPW_SERVICE_USER:-frpw}"
 
@@ -133,9 +134,18 @@ download_file() {
     validate_url "$url"
     temporary="$destination.part"
     rm -f "$temporary"
+    # Release binaries pass "progress" as the 4th argument. Draw the bar only
+    # on an interactive terminal so piped logs and CI output stay clean.
+    curl_flags="-fsSL"
+    wget_flags="-q"
+    if [ "${4:-}" = "progress" ] && [ "$FRPW_NO_PROGRESS" != "1" ] && [ -t 2 ]; then
+        curl_flags="-fSL --progress-bar"
+        # Let wget draw its native meter; --progress is not portable to busybox.
+        wget_flags=""
+    fi
     if have curl; then
         if [ -n "$FRPW_TOKEN" ]; then
-            if curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+            if curl --http1.1 $curl_flags --location --retry "$FRPW_RETRIES" --retry-delay 2 \
                 --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Authorization: Bearer $FRPW_TOKEN" \
                 -H "Accept: $accept" \
@@ -148,7 +158,7 @@ download_file() {
                 return 1
             fi
         else
-            if curl --http1.1 -fsSL --location --retry "$FRPW_RETRIES" --retry-delay 2 \
+            if curl --http1.1 $curl_flags --location --retry "$FRPW_RETRIES" --retry-delay 2 \
                 --connect-timeout "$FRPW_CONNECT_TIMEOUT" --max-time "$FRPW_MAX_TIME" \
                 -H "Accept: $accept" \
                 -H "User-Agent: frpw-installer" \
@@ -169,7 +179,7 @@ download_file() {
     fi
     if have wget; then
         if [ -n "$FRPW_TOKEN" ]; then
-            if wget -qO "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+            if wget $wget_flags -O "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
                 --header="Authorization: Bearer $FRPW_TOKEN" \
                 --header="Accept: $accept" \
                 --header="User-Agent: frpw-installer" \
@@ -180,7 +190,7 @@ download_file() {
                 return 1
             fi
         else
-            if wget -qO "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
+            if wget $wget_flags -O "$temporary" --tries="$FRPW_RETRIES" --timeout="$FRPW_CONNECT_TIMEOUT" \
                 --header="Accept: $accept" \
                 --header="User-Agent: frpw-installer" \
                 "$url"; then
@@ -247,9 +257,10 @@ download_asset() {
         cp -f "$FRPW_LOCAL_DIR/$asset_name" "$destination"
         return
     fi
+    log "downloading $asset_name"
     download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
     if [ -n "$download_base" ]; then
-        download_file "$download_base/$asset_name" "$destination"
+        download_file "$download_base/$asset_name" "$destination" application/octet-stream progress
         return
     fi
     id=""
@@ -260,12 +271,12 @@ download_asset() {
         '' | *[!0-9]*) id="" ;;
     esac
     api_base="${FRPW_GITHUB_API_URL%/}"
-    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination"; then
+    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination" application/octet-stream progress; then
         return
     fi
     [ -z "$id" ] || warn "GitHub API download failed for $asset_name; trying public download URL"
     github_download_base="${FRPW_GITHUB_DOWNLOAD_URL%/}"
-    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination"
+    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination" application/octet-stream progress
 }
 
 checksum_for_asset() {
@@ -336,6 +347,11 @@ hex_to_binary() {
     perl -ne 'chomp; print pack("H*", $_)'
 }
 
+epoch_date() {
+    # GNU date, BSD date, then the raw epoch as a last resort (busybox).
+    date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null || printf '%s' "$1"
+}
+
 verify_license() {
     [ -n "$FRPW_LICENSE" ] || die "this is a paid distribution: set FRPW_LICENSE to your license key, for example
   curl -fsSL <install.sh URL> | sudo FRPW_LICENSE=FRPW-xxx... sh -s -- server
@@ -382,10 +398,29 @@ Contact the vendor to purchase a license."
     [ "$now" -le "$expires" ] || die "license expired on $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null || printf '%s' "$expires")"
 
     customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
+    plan="$(cut -d"|" -f5 < "$TMP_LIC/payload")"
     max_installs="$(cut -d"|" -f4 < "$TMP_LIC/payload")"
-    log "license verified: $customer (expires $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null), max installs: ${max_installs:-unlimited})"
+    key_version="$(cut -d"|" -f1 < "$TMP_LIC/payload")"
+    expires_date="$(epoch_date "$expires")"
+    days_left=$(( (expires - now + 86399) / 86400 ))
+    max_display="${max_installs:-unlimited}"
+    [ "$max_display" != "0" ] || max_display="unlimited"
     rm -rf "$TMP_LIC"
     trap - EXIT HUP INT TERM
+
+    if [ "${FRPW_LICENSE_INFO_SHOWN:-0}" = "1" ]; then
+        log "license verified: $customer (expires $expires_date)"
+        return 0
+    fi
+    printf '%s\n' ""
+    log "license verified - paid distribution"
+    printf '    %-14s %s\n' "Key version:" "${key_version:-n/a}"
+    printf '    %-14s %s\n' "Customer:" "${customer:-n/a}"
+    printf '    %-14s %s\n' "Plan:" "${plan:-standard}"
+    printf '    %-14s %s\n' "Valid until:" "$expires_date ($days_left days left)"
+    printf '    %-14s %s\n' "Max installs:" "$max_display"
+    printf '    %-14s %s\n' "Signature:" "Ed25519 verified"
+    printf '%s\n' ""
 }
 
 sha256_file() {
@@ -677,11 +712,11 @@ EOF
 main() {
     need_root
     [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only"
-    TMP_DIR="$(mktemp -d)"
-    trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
     case "$COMPONENT" in
         server) verify_license ;;
     esac
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
     if [ -n "$FRPW_LOCAL_DIR" ]; then
         log "installing from local release directory: $FRPW_LOCAL_DIR"
     else
