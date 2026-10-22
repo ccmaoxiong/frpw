@@ -49,17 +49,45 @@ log() {
 }
 
 warn() {
-    printf '%s\n' "warning: $*" >&2
+    printf '%s\n' "警告: $*" >&2
 }
 
 die() {
-    printf '%s\n' "error: $*" >&2
+    printf '%s\n' "错误: $*" >&2
     exit 1
+}
+
+human_size() {
+    bytes="$1"
+    case "$bytes" in
+        '' | *[!0-9]*) printf '%s' "$bytes"; return 0 ;;
+    esac
+    awk -v n="$bytes" 'BEGIN {
+        if (n < 1048576) { printf "%d 字节", n; exit }
+        split("MB GB TB", unit, " ")
+        n /= 1048576
+        i = 1
+        while (n >= 1024 && i < 3) { n /= 1024; i++ }
+        printf "%.1f %s", n, unit[i]
+    }'
+}
+
+file_size() {
+    wc -c < "$1" | tr -d ' '
+}
+
+mask_license() {
+    key="${1:-}"
+    case "$(printf '%s' "$key" | tr 'a-z' 'A-Z')" in
+        FRPW-*) key="${key#?????}" ;;
+    esac
+    suffix="$(printf '%s' "$key" | tr -cd 'A-Za-z0-9' | tail -c 4)"
+    printf 'FRPW-****%s' "$suffix"
 }
 
 need_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        die "run this installer as root"
+        die "请以 root 权限运行此安装脚本"
     fi
 }
 
@@ -71,10 +99,10 @@ validate_url() {
     url="$1"
     case "$url" in
         http://* | https://*) ;;
-        *) die "invalid download URL: $url" ;;
+        *) die "无效的下载地址: $url" ;;
     esac
     case "$url" in
-        *[[:space:]]*) die "download URL contains whitespace or control characters" ;;
+        *[[:space:]]*) die "下载地址包含空白或控制字符" ;;
     esac
 }
 
@@ -82,7 +110,7 @@ detect_arch() {
     case "$(uname -m)" in
         x86_64 | amd64) printf '%s' "amd64" ;;
         aarch64 | arm64) printf '%s' "arm64" ;;
-        *) die "unsupported architecture: $(uname -m)" ;;
+        *) die "不支持的 CPU 架构: $(uname -m)" ;;
     esac
 }
 
@@ -124,7 +152,7 @@ http_get() {
         fi
         return
     fi
-    die "curl or wget is required"
+    die "需要 curl 或 wget"
 }
 
 download_file() {
@@ -207,7 +235,7 @@ download_file() {
         rm -f "$temporary"
         return 1
     fi
-    die "curl or wget is required"
+    die "需要 curl 或 wget"
 }
 
 load_release() {
@@ -222,7 +250,7 @@ load_release() {
         return
     fi
     RELEASE_JSON=""
-    warn "GitHub release metadata unavailable; falling back to public download URLs"
+    warn "GitHub 发行信息不可用，改用公共下载地址"
 }
 
 asset_id() {
@@ -245,23 +273,25 @@ asset_id() {
 # binaries (set by install-local.sh), install from disk after the same SHA256
 # verification used for remote downloads.
 if [ -n "$FRPW_LOCAL_DIR" ]; then
-    [ -d "$FRPW_LOCAL_DIR" ] || die "FRPW_LOCAL_DIR is not a directory: $FRPW_LOCAL_DIR"
-    [ -f "$FRPW_LOCAL_DIR/SHA256SUMS" ] || die "FRPW_LOCAL_DIR is missing SHA256SUMS: $FRPW_LOCAL_DIR"
+    [ -d "$FRPW_LOCAL_DIR" ] || die "FRPW_LOCAL_DIR 不是目录: $FRPW_LOCAL_DIR"
+    [ -f "$FRPW_LOCAL_DIR/SHA256SUMS" ] || die "FRPW_LOCAL_DIR 缺少 SHA256SUMS: $FRPW_LOCAL_DIR"
 fi
 
 download_asset() {
     asset_name="$1"
     destination="$2"
     if [ -n "$FRPW_LOCAL_DIR" ]; then
-        [ -f "$FRPW_LOCAL_DIR/$asset_name" ] || die "local release asset missing: $FRPW_LOCAL_DIR/$asset_name"
+        [ -f "$FRPW_LOCAL_DIR/$asset_name" ] || die "本地发行文件缺失: $FRPW_LOCAL_DIR/$asset_name"
+        log "使用本地发行文件: $asset_name ($(human_size "$(file_size "$FRPW_LOCAL_DIR/$asset_name")"))"
         cp -f "$FRPW_LOCAL_DIR/$asset_name" "$destination"
-        return
+        return 0
     fi
-    log "downloading $asset_name"
+    log "下载 $asset_name ..."
     download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
     if [ -n "$download_base" ]; then
-        download_file "$download_base/$asset_name" "$destination" application/octet-stream progress
-        return
+        download_file "$download_base/$asset_name" "$destination" application/octet-stream progress || return 1
+        log "下载完成: $asset_name ($(human_size "$(file_size "$destination")"))"
+        return 0
     fi
     id=""
     if [ "$FRPW_USE_GITHUB_API" = "1" ] && [ -n "$RELEASE_JSON" ]; then
@@ -272,11 +302,13 @@ download_asset() {
     esac
     api_base="${FRPW_GITHUB_API_URL%/}"
     if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination" application/octet-stream progress; then
-        return
+        log "下载完成: $asset_name ($(human_size "$(file_size "$destination")"))"
+        return 0
     fi
-    [ -z "$id" ] || warn "GitHub API download failed for $asset_name; trying public download URL"
+    [ -z "$id" ] || warn "GitHub API 下载失败: $asset_name，改用公共下载地址"
     github_download_base="${FRPW_GITHUB_DOWNLOAD_URL%/}"
-    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination" application/octet-stream progress
+    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/$asset_name" "$destination" application/octet-stream progress || return 1
+    log "下载完成: $asset_name ($(human_size "$(file_size "$destination")"))"
 }
 
 checksum_for_asset() {
@@ -303,14 +335,17 @@ download_checksums() {
     manifest_asset="frpw-server-$FRPW_VERSION-linux-amd64"
     if [ -n "$FRPW_LOCAL_DIR" ]; then
         cp -f "$FRPW_LOCAL_DIR/SHA256SUMS" "$destination"
-        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "local SHA256SUMS is invalid"
-        return
+        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "本地 SHA256SUMS 无效"
+        log "使用本地校验清单: SHA256SUMS ($(human_size "$(file_size "$destination")"))"
+        return 0
     fi
+    log "下载 SHA256SUMS ..."
     download_base="${FRPW_DOWNLOAD_BASE_URL%/}"
     if [ -n "$download_base" ]; then
-        download_file "$download_base/SHA256SUMS" "$destination"
-        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "downloaded SHA256SUMS is invalid"
-        return
+        download_file "$download_base/SHA256SUMS" "$destination" application/octet-stream progress || return 1
+        log "下载完成: SHA256SUMS ($(human_size "$(file_size "$destination")"))"
+        [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "下载的 SHA256SUMS 无效"
+        return 0
     fi
     id=""
     if [ "$FRPW_USE_GITHUB_API" = "1" ] && [ -n "$RELEASE_JSON" ]; then
@@ -320,13 +355,15 @@ download_checksums() {
         '' | *[!0-9]*) id="" ;;
     esac
     api_base="${FRPW_GITHUB_API_URL%/}"
-    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination" && [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ]; then
-        return
+    if [ -n "$id" ] && download_file "$api_base/repos/$FRPW_REPO/releases/assets/$id" "$destination" application/octet-stream progress && [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ]; then
+        log "下载完成: SHA256SUMS ($(human_size "$(file_size "$destination")"))"
+        return 0
     fi
-    [ -z "$id" ] || warn "GitHub API checksum download was invalid; trying public download URL"
+    [ -z "$id" ] || warn "GitHub API 校验清单下载无效，改用公共下载地址"
     github_download_base="${FRPW_GITHUB_DOWNLOAD_URL%/}"
-    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/SHA256SUMS" "$destination"
-    [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "downloaded SHA256SUMS is invalid"
+    download_file "$github_download_base/$FRPW_REPO/releases/download/$FRPW_VERSION/SHA256SUMS" "$destination" application/octet-stream progress || return 1
+    log "下载完成: SHA256SUMS ($(human_size "$(file_size "$destination")"))"
+    [ -n "$(checksum_for_asset "$manifest_asset" "$destination")" ] || die "下载的 SHA256SUMS 无效"
 }
 
 # --- license verification (POSIX sh, needs base64 + openssl) -------------------
@@ -338,7 +375,7 @@ b64url_decode() {
         if (mod == 2) printf "%s==", $0
         else if (mod == 3) printf "%s=", $0
         else if (mod == 0) printf "%s", $0
-        else { printf "\ninvalid base64 length\n" > "/dev/stderr"; exit 1 }
+        else { printf "\nBase64 数据长度无效\n" > "/dev/stderr"; exit 1 }
     }' | base64 -d 2>/dev/null
 }
 
@@ -352,13 +389,13 @@ epoch_date() {
     date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null || printf '%s' "$1"
 }
 
-verify_license() {
-    [ -n "$FRPW_LICENSE" ] || die "this is a paid distribution: set FRPW_LICENSE to your license key, for example
-  curl -fsSL <install.sh URL> | sudo FRPW_LICENSE=FRPW-xxx... sh -s -- server
-Contact the vendor to purchase a license."
-    have base64 || die "base64 is required to verify the license"
-    have openssl || die "openssl is required to verify the license"
-    have perl || die "perl is required to verify the license"
+verify_license() (
+    [ -n "$FRPW_LICENSE" ] || die "此发行版为付费授权：请设置 FRPW_LICENSE 授权密钥，例如
+  curl -fsSL <install.sh 地址> | sudo FRPW_LICENSE=FRPW-xxx... sh -s -- server
+请联系供应商购买授权。"
+    have base64 || die "未找到 base64，无法校验授权"
+    have openssl || die "未找到 openssl，无法校验授权"
+    have perl || die "未找到 perl，无法校验授权"
 
     key="$FRPW_LICENSE"
     case "$(printf '%s' "$key" | tr "a-z" "A-Z")" in
@@ -366,17 +403,17 @@ Contact the vendor to purchase a license."
     esac
     payload_b64="${key%%.*}"
     sig_b64="${key#*.}"
-    [ "$payload_b64" != "$key" ] || die "invalid license key format"
+    [ "$payload_b64" != "$key" ] || die "授权密钥格式无效"
 
     TMP_LIC="$(mktemp -d)"
     trap 'rm -rf "$TMP_LIC"' EXIT HUP INT TERM
 
     printf '%s' "$payload_b64" | b64url_decode > "$TMP_LIC/payload" \
-        || die "license payload cannot be decoded"
-    [ -s "$TMP_LIC/payload" ] || die "license payload cannot be decoded"
+        || die "授权数据无法解码"
+    [ -s "$TMP_LIC/payload" ] || die "授权数据无法解码"
     printf '%s' "$sig_b64" | b64url_decode > "$TMP_LIC/sig" \
-        || die "license signature cannot be decoded"
-    [ "$(wc -c < "$TMP_LIC/sig" | tr -d " ")" = "64" ] || die "license signature has an invalid length"
+        || die "授权签名无法解码"
+    [ "$(wc -c < "$TMP_LIC/sig" | tr -d " ")" = "64" ] || die "授权签名长度无效"
 
     printf '%s' "$FRPW_LICENSE_PUBLIC_KEY" | b64url_decode | od -An -tx1 -v | tr -d " \n" > "$TMP_LIC/pub.hex"
     {
@@ -387,41 +424,34 @@ Contact the vendor to purchase a license."
     if ! openssl pkeyutl -verify -pubin -keyform DER \
             -inkey "$TMP_LIC/pub.der" -rawin \
             -in "$TMP_LIC/payload" -sigfile "$TMP_LIC/sig" >/dev/null 2>&1; then
-        die "license signature verification failed (invalid or tampered key)"
+        die "授权签名校验失败（密钥无效或被篡改）"
     fi
 
     expires="$(cut -d"|" -f3 < "$TMP_LIC/payload")"
     case "$expires" in
-        '' | *[!0-9]*) die "license expiry field is invalid" ;;
+        '' | *[!0-9]*) die "授权到期字段无效" ;;
     esac
     now="$(date +%s)"
-    [ "$now" -le "$expires" ] || die "license expired on $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null || printf '%s' "$expires")"
+    [ "$now" -le "$expires" ] || die "授权已于 $(epoch_date "$expires") 到期"
 
     customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
-    plan="$(cut -d"|" -f5 < "$TMP_LIC/payload")"
     max_installs="$(cut -d"|" -f4 < "$TMP_LIC/payload")"
-    key_version="$(cut -d"|" -f1 < "$TMP_LIC/payload")"
     expires_date="$(epoch_date "$expires")"
-    days_left=$(( (expires - now + 86399) / 86400 ))
-    max_display="${max_installs:-unlimited}"
-    [ "$max_display" != "0" ] || max_display="unlimited"
+    max_display="${max_installs:-0}"
+    [ "$max_display" != "0" ] || max_display="不限"
     rm -rf "$TMP_LIC"
     trap - EXIT HUP INT TERM
 
     if [ "${FRPW_LICENSE_INFO_SHOWN:-0}" = "1" ]; then
-        log "license verified: $customer (expires $expires_date)"
         return 0
     fi
-    printf '%s\n' ""
-    log "license verified - paid distribution"
-    printf '    %-14s %s\n' "Key version:" "${key_version:-n/a}"
-    printf '    %-14s %s\n' "Customer:" "${customer:-n/a}"
-    printf '    %-14s %s\n' "Plan:" "${plan:-standard}"
-    printf '    %-14s %s\n' "Valid until:" "$expires_date ($days_left days left)"
-    printf '    %-14s %s\n' "Max installs:" "$max_display"
-    printf '    %-14s %s\n' "Signature:" "Ed25519 verified"
-    printf '%s\n' ""
-}
+    log "授权核验通过"
+    log "授权状态: 有效"
+    log "客户名称: ${customer:-未命名}"
+    log "到期时间: $expires_date"
+    log "最大安装数: $max_display"
+    log "授权密钥: $(mask_license "$FRPW_LICENSE")"
+)
 
 sha256_file() {
     file="$1"
@@ -430,7 +460,7 @@ sha256_file() {
     elif have shasum; then
         shasum -a 256 "$file" | awk '{print $1}'
     else
-        die "sha256sum or shasum is required"
+        die "需要 sha256sum 或 shasum"
     fi
 }
 
@@ -439,10 +469,10 @@ verify_asset() {
     file="$2"
     sums="$3"
     expected="$(checksum_for_asset "$asset_name" "$sums")"
-    [ -n "$expected" ] || die "SHA256SUMS has no valid entry for $asset_name"
+    [ -n "$expected" ] || die "SHA256SUMS 中没有 $asset_name 的有效校验值"
     actual="$(sha256_file "$file")"
     if [ "$actual" != "$expected" ]; then
-        die "checksum verification failed for $asset_name"
+        die "$asset_name 校验失败（文件损坏或被篡改）"
     fi
 }
 
@@ -455,7 +485,7 @@ generate_secret() {
         od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
         return
     fi
-    die "cannot generate a secure JWT secret; install openssl or provide FRPW_JWT_SECRET"
+    die "无法生成安全的 JWT 密钥，请安装 openssl 或设置 FRPW_JWT_SECRET"
 }
 
 ensure_user() {
@@ -467,7 +497,7 @@ ensure_user() {
     elif have adduser; then
         adduser -S -D -H -h "$INSTALL_DIR" -s /sbin/nologin "$FRPW_SERVICE_USER"
     else
-        die "create a system user named $FRPW_SERVICE_USER or set FRPW_SERVICE_USER"
+        die "请创建系统用户 $FRPW_SERVICE_USER，或设置 FRPW_SERVICE_USER"
     fi
 }
 
@@ -500,8 +530,9 @@ EOF
         systemctl daemon-reload
         systemctl enable "$SERVICE_NAME"
         systemctl restart "$SERVICE_NAME"
+        log "systemd 服务已启动: $SERVICE_NAME"
     else
-        warn "systemd was not found; start manually with: $EXEC_START"
+        warn "未找到 systemd，请手动启动: $EXEC_START"
     fi
 }
 
@@ -510,7 +541,9 @@ install_binary() {
     binary_path="$2"
     download_asset "$asset_name" "$TMP_DIR/$asset_name"
     verify_asset "$asset_name" "$TMP_DIR/$asset_name" "$TMP_DIR/SHA256SUMS"
+    log "$asset_name SHA256 验证通过"
     install -m 0755 "$TMP_DIR/$asset_name" "$binary_path"
+    log "程序已安装: $binary_path"
 }
 
 download_client_catalog() {
@@ -533,10 +566,11 @@ download_client_catalog() {
             verify_asset "$asset_name" "$TMP_DIR/$asset_name" "$TMP_DIR/SHA256SUMS"
             install -m 0755 "$TMP_DIR/$asset_name" "$client_dir/$catalog_name"
         else
-            warn "optional release asset unavailable: $asset_name"
+            warn "可选发行文件不可用: $asset_name"
         fi
     done
     install -m 0644 "$TMP_DIR/SHA256SUMS" "$client_dir/SHA256SUMS"
+    log "客户端与节点目录已安装: $client_dir"
 }
 
 install_server() {
@@ -570,7 +604,7 @@ install_server() {
         chmod 0600 "$license_file"
     fi
     UNIT_ENVIRONMENT="Environment=FRPW_LICENSE_FILE=$license_file"
-    log "license key stored: $license_file"
+    log "授权密钥已写入: $license_file"
     install_binary "frpw-server-$FRPW_VERSION-linux-$(detect_arch)" "$INSTALL_DIR/frpw-server"
 
     if [ ! -f "$CONFIG_FILE" ]; then
@@ -598,8 +632,9 @@ payment:
   allow_mock: false
 EOF
         chmod 0600 "$CONFIG_FILE"
+        log "已生成配置文件: $CONFIG_FILE"
     else
-        log "preserving existing configuration: $CONFIG_FILE"
+        log "保留已有配置文件: $CONFIG_FILE (如需改端口请编辑该文件后重启服务)"
     fi
 
     download_client_catalog
@@ -608,12 +643,12 @@ EOF
     EXEC_START="$INSTALL_DIR/frpw-server -config $CONFIG_FILE"
     write_systemd_unit
 
-    log "FRPW server $FRPW_VERSION installed"
-    log "user console: http://<server-ip>:${API_ADDR##*:}"
-    log "admin console: http://<server-ip>:${API_ADDR##*:}$ADMIN_PATH"
-    log "default admin: admin@example.com / admin12345 (change immediately)"
-    log "default user: user@example.com / user12345 (change immediately)"
-    warn "public HTTP port must be reachable on ${PUBLIC_HTTP_PORT}; Agent port must be reachable on ${AGENT_ADDR##*:}"
+    log "FRPW 服务端 $FRPW_VERSION 安装完成"
+    log "用户端地址: http://<服务器IP>:${API_ADDR##*:}"
+    log "管理端地址: http://<服务器IP>:${API_ADDR##*:}$ADMIN_PATH"
+    log "默认管理员: admin@example.com / admin12345（请立即修改）"
+    log "默认用户: user@example.com / user12345（请立即修改）"
+    warn "请确保公网 HTTP 端口 ${PUBLIC_HTTP_PORT} 与 Agent 端口 ${AGENT_ADDR##*:} 已在防火墙放行"
 }
 
 install_agent() {
@@ -628,9 +663,9 @@ install_agent() {
     AGENT_ID="${FRPW_AGENT_ID:-$(hostname)}"
     NODE_ID="${FRPW_NODE_ID:-node_local}"
 
-    [ -n "$AGENT_SERVER" ] || die "FRPW_SERVER is required, for example FRPW_SERVER=203.0.113.10:7000"
-    [ -n "$AGENT_TOKEN_VALUE" ] || die "FRPW_AGENT_TOKEN is required"
-    [ -n "$CONTROL_PLANE" ] || die "FRPW_CONTROL_PLANE is required, for example https://console.example.com"
+    [ -n "$AGENT_SERVER" ] || die "未设置 FRPW_SERVER，例如 FRPW_SERVER=203.0.113.10:7000"
+    [ -n "$AGENT_TOKEN_VALUE" ] || die "未设置 FRPW_AGENT_TOKEN"
+    [ -n "$CONTROL_PLANE" ] || die "未设置 FRPW_CONTROL_PLANE，例如 https://console.example.com"
 
     install -d -m 0755 "$INSTALL_DIR" "$CONFIG_DIR" "$DATA_DIR"
     ensure_user
@@ -649,15 +684,16 @@ max_backoff: 30s
 tunnels: []
 EOF
         chmod 0600 "$CONFIG_FILE"
+        log "已生成配置文件: $CONFIG_FILE"
     else
-        log "preserving existing configuration: $CONFIG_FILE"
+        log "保留已有配置文件: $CONFIG_FILE (如需改端口请编辑该文件后重启服务)"
     fi
 
     chown -R "$FRPW_SERVICE_USER:$FRPW_SERVICE_USER" "$INSTALL_DIR" "$DATA_DIR"
     chown "$FRPW_SERVICE_USER:$FRPW_SERVICE_USER" "$CONFIG_FILE"
     EXEC_START="$INSTALL_DIR/frpw-agent -headless -config $CONFIG_FILE"
     write_systemd_unit
-    log "FRPW Agent $FRPW_VERSION installed on node $NODE_ID"
+    log "FRPW Agent $FRPW_VERSION 安装完成，节点: $NODE_ID"
 }
 
 install_node() {
@@ -675,8 +711,8 @@ install_node() {
     NODE_PORT_RANGE_FROM="${FRPW_NODE_PORT_RANGE_FROM:-20000}"
     NODE_PORT_RANGE_TO="${FRPW_NODE_PORT_RANGE_TO:-20999}"
 
-    [ -n "$CONTROL_PLANE" ] || die "FRPW_CONTROL_PLANE is required"
-    [ -n "$NODE_TOKEN_VALUE" ] || die "FRPW_NODE_TOKEN is required"
+    [ -n "$CONTROL_PLANE" ] || die "未设置 FRPW_CONTROL_PLANE，例如 https://console.example.com"
+    [ -n "$NODE_TOKEN_VALUE" ] || die "未设置 FRPW_NODE_TOKEN"
 
     install -d -m 0755 "$INSTALL_DIR" "$CONFIG_DIR" "$DATA_DIR"
     ensure_user
@@ -698,27 +734,33 @@ tunnel_timeout: 30s
 log_level: info
 EOF
         chmod 0600 "$CONFIG_FILE"
+        log "已生成配置文件: $CONFIG_FILE"
     else
-        log "preserving existing configuration: $CONFIG_FILE"
+        log "保留已有配置文件: $CONFIG_FILE (如需改端口请编辑该文件后重启服务)"
     fi
 
     chown -R "$FRPW_SERVICE_USER:$FRPW_SERVICE_USER" "$INSTALL_DIR" "$DATA_DIR"
     chown "$FRPW_SERVICE_USER:$FRPW_SERVICE_USER" "$CONFIG_FILE"
     EXEC_START="$INSTALL_DIR/frpw-node -config $CONFIG_FILE"
     write_systemd_unit
-    log "FRPW remote node $FRPW_VERSION installed"
+    log "FRPW 远程节点 $FRPW_VERSION 安装完成"
 }
 
 main() {
     need_root
-    [ "$(uname -s)" = "Linux" ] || die "install.sh supports Linux only"
+    [ "$(uname -s)" = "Linux" ] || die "install.sh 仅支持 Linux"
     case "$COMPONENT" in
-        server) verify_license ;;
+        server)
+            if [ "${FRPW_LICENSE_INFO_SHOWN:-0}" != "1" ] && [ -n "$FRPW_LICENSE" ]; then
+                log "授权密钥: $(mask_license "$FRPW_LICENSE")"
+            fi
+            verify_license
+            ;;
     esac
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
     if [ -n "$FRPW_LOCAL_DIR" ]; then
-        log "installing from local release directory: $FRPW_LOCAL_DIR"
+        log "使用本地发行目录安装: $FRPW_LOCAL_DIR"
     else
         load_release
     fi
@@ -728,7 +770,7 @@ main() {
         server) install_server ;;
         agent) install_agent ;;
         node) install_node ;;
-        *) die "component must be server, agent, or node" ;;
+        *) die "组件必须是 server、agent 或 node" ;;
     esac
 }
 

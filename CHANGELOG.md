@@ -13,7 +13,8 @@
 - Fixed remote-node heartbeats: a definition refresh now reconnects only Agents whose live routes actually differ from the desired set. Previously every refresh called DisconnectAll and could kick healthy Agents, including ones that had just come online.
 - Fixed the admin instance dashboard agent count to deduplicate local and remote Agents and to count only the current tenant's online tunnels.
 - Fixed user-console issues: a white screen caused by an undefined identity state, ticket reply/status requests using the wrong path or HTTP method, same-page navigation not refreshing stale data, and misleading email-readiness text.
-- Installer: interactive terminals now show a download progress bar for Release assets (`FRPW_NO_PROGRESS=1` disables it), and server installs print the verified license block (customer, plan, expiry, remaining days, max installs, signature). The China and offline installers print the same block; temporary-directory cleanup is restored.
+- Client branding: the local client console window title, sidebar brand, and generated client-package README now read「FRPW 商业授权」instead of「FRPW Agent 控制台」/「FRPW 客户端」.
+- Installer: all three installers now use the QL-style Chinese status output (`==> 下载 X ...`, `==> 下载完成: X (42.5 MB)`), print human-readable sizes, and show the masked license key plus the verified customer, expiry and max-install count. Interactive terminals keep the download progress bar (`FRPW_NO_PROGRESS=1` disables it); temporary-directory cleanup is preserved.
 - Bumped the default install version to `v1.0.2` and repinned `install-cn.sh` to the v1.0.2 `SHA256SUMS` and `install.sh`.
 
 ## v1.0.1 - 2026-10-12

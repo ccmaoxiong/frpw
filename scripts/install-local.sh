@@ -34,9 +34,41 @@ log() {
     printf '%s\n' "==> $*"
 }
 
+warn() {
+    printf '%s\n' "警告: $*" >&2
+}
+
 die() {
-    printf '%s\n' "error: $*" >&2
+    printf '%s\n' "错误: $*" >&2
     exit 1
+}
+
+human_size() {
+    bytes="$1"
+    case "$bytes" in
+        '' | *[!0-9]*) printf '%s' "$bytes"; return 0 ;;
+    esac
+    awk -v n="$bytes" 'BEGIN {
+        if (n < 1048576) { printf "%d 字节", n; exit }
+        split("MB GB TB", unit, " ")
+        n /= 1048576
+        i = 1
+        while (n >= 1024 && i < 3) { n /= 1024; i++ }
+        printf "%.1f %s", n, unit[i]
+    }'
+}
+
+file_size() {
+    wc -c < "$1" | tr -d ' '
+}
+
+mask_license() {
+    key="${1:-}"
+    case "$(printf '%s' "$key" | tr 'a-z' 'A-Z')" in
+        FRPW-*) key="${key#?????}" ;;
+    esac
+    suffix="$(printf '%s' "$key" | tr -cd 'A-Za-z0-9' | tail -c 4)"
+    printf 'FRPW-****%s' "$suffix"
 }
 
 have() {
@@ -50,7 +82,7 @@ sha256_file() {
     elif have shasum; then
         shasum -a 256 "$file" | awk '{print $1}'
     else
-        die "sha256sum or shasum is required"
+        die "需要 sha256sum 或 shasum"
     fi
 }
 
@@ -77,7 +109,7 @@ detect_arch() {
     case "$(uname -m)" in
         x86_64 | amd64) printf '%s' "amd64" ;;
         aarch64 | arm64) printf '%s' "arm64" ;;
-        *) die "unsupported CPU architecture: $(uname -m)" ;;
+        *) die "不支持的 CPU 架构: $(uname -m)" ;;
     esac
 }
 
@@ -90,7 +122,7 @@ b64url_decode() {
         if (mod == 2) printf "%s==", $0
         else if (mod == 3) printf "%s=", $0
         else if (mod == 0) printf "%s", $0
-        else { printf "\ninvalid base64 length\n" > "/dev/stderr"; exit 1 }
+        else { printf "\nBase64 数据长度无效\n" > "/dev/stderr"; exit 1 }
     }' | base64 -d 2>/dev/null
 }
 
@@ -104,13 +136,13 @@ epoch_date() {
     date -d "@$1" +%Y-%m-%d 2>/dev/null || date -r "$1" +%Y-%m-%d 2>/dev/null || printf '%s' "$1"
 }
 
-verify_license() {
-    [ -n "$FRPW_LICENSE" ] || die "this is a paid distribution: set FRPW_LICENSE to your license key, for example
+verify_license() (
+    [ -n "$FRPW_LICENSE" ] || die "此发行版为付费授权：请设置 FRPW_LICENSE 授权密钥，例如
   sudo FRPW_LICENSE=FRPW-xxx... sh install-local.sh server
-Contact the vendor to purchase a license."
-    have base64 || die "base64 is required to verify the license"
-    have openssl || die "openssl is required to verify the license"
-    have perl || die "perl is required to verify the license"
+请联系供应商购买授权。"
+    have base64 || die "未找到 base64，无法校验授权"
+    have openssl || die "未找到 openssl，无法校验授权"
+    have perl || die "未找到 perl，无法校验授权"
 
     key="$FRPW_LICENSE"
     case "$(printf '%s' "$key" | tr "a-z" "A-Z")" in
@@ -118,17 +150,17 @@ Contact the vendor to purchase a license."
     esac
     payload_b64="${key%%.*}"
     sig_b64="${key#*.}"
-    [ "$payload_b64" != "$key" ] || die "invalid license key format"
+    [ "$payload_b64" != "$key" ] || die "授权密钥格式无效"
 
     TMP_LIC="$(mktemp -d)"
     trap 'rm -rf "$TMP_LIC"' EXIT HUP INT TERM
 
     printf '%s' "$payload_b64" | b64url_decode > "$TMP_LIC/payload" \
-        || die "license payload cannot be decoded"
-    [ -s "$TMP_LIC/payload" ] || die "license payload cannot be decoded"
+        || die "授权数据无法解码"
+    [ -s "$TMP_LIC/payload" ] || die "授权数据无法解码"
     printf '%s' "$sig_b64" | b64url_decode > "$TMP_LIC/sig" \
-        || die "license signature cannot be decoded"
-    [ "$(wc -c < "$TMP_LIC/sig" | tr -d " ")" = "64" ] || die "license signature has an invalid length"
+        || die "授权签名无法解码"
+    [ "$(wc -c < "$TMP_LIC/sig" | tr -d " ")" = "64" ] || die "授权签名长度无效"
 
     printf '%s' "$FRPW_LICENSE_PUBLIC_KEY" | b64url_decode | od -An -tx1 -v | tr -d " \n" > "$TMP_LIC/pub.hex"
     {
@@ -139,37 +171,31 @@ Contact the vendor to purchase a license."
     if ! openssl pkeyutl -verify -pubin -keyform DER \
             -inkey "$TMP_LIC/pub.der" -rawin \
             -in "$TMP_LIC/payload" -sigfile "$TMP_LIC/sig" >/dev/null 2>&1; then
-        die "license signature verification failed (invalid or tampered key)"
+        die "授权签名校验失败（密钥无效或被篡改）"
     fi
 
     expires="$(cut -d"|" -f3 < "$TMP_LIC/payload")"
     case "$expires" in
-        '' | *[!0-9]*) die "license expiry field is invalid" ;;
+        '' | *[!0-9]*) die "授权到期字段无效" ;;
     esac
     now="$(date +%s)"
-    [ "$now" -le "$expires" ] || die "license expired on $(date -d "@$expires" +%Y-%m-%d 2>/dev/null || date -r "$expires" +%Y-%m-%d 2>/dev/null || printf '%s' "$expires")"
+    [ "$now" -le "$expires" ] || die "授权已于 $(epoch_date "$expires") 到期"
 
     customer="$(cut -d"|" -f2 < "$TMP_LIC/payload")"
-    plan="$(cut -d"|" -f5 < "$TMP_LIC/payload")"
     max_installs="$(cut -d"|" -f4 < "$TMP_LIC/payload")"
-    key_version="$(cut -d"|" -f1 < "$TMP_LIC/payload")"
     expires_date="$(epoch_date "$expires")"
-    days_left=$(( (expires - now + 86399) / 86400 ))
-    max_display="${max_installs:-unlimited}"
-    [ "$max_display" != "0" ] || max_display="unlimited"
+    max_display="${max_installs:-0}"
+    [ "$max_display" != "0" ] || max_display="不限"
     rm -rf "$TMP_LIC"
     trap - EXIT HUP INT TERM
 
-    printf '%s\n' ""
-    log "license verified - paid distribution"
-    printf '    %-14s %s\n' "Key version:" "${key_version:-n/a}"
-    printf '    %-14s %s\n' "Customer:" "${customer:-n/a}"
-    printf '    %-14s %s\n' "Plan:" "${plan:-standard}"
-    printf '    %-14s %s\n' "Valid until:" "$expires_date ($days_left days left)"
-    printf '    %-14s %s\n' "Max installs:" "$max_display"
-    printf '    %-14s %s\n' "Signature:" "Ed25519 verified"
-    printf '%s\n' ""
-}
+    log "授权核验通过"
+    log "授权状态: 有效"
+    log "客户名称: ${customer:-未命名}"
+    log "到期时间: $expires_date"
+    log "最大安装数: $max_display"
+    log "授权密钥: $(mask_license "$FRPW_LICENSE")"
+)
 
 # The release directory defaults to the directory containing this script so
 # the common "upload everything into one folder" flow needs no variables.
@@ -179,17 +205,23 @@ if [ -n "${0:-}" ] && [ -f "$0" ]; then
 fi
 RELEASE_DIR="${FRPW_RELEASE_DIR:-${SCRIPT_DIR:-$PWD}}"
 
-[ "$(uname -s)" = "Linux" ] || die "install-local.sh supports Linux only"
-case "$COMPONENT" in
-    server) verify_license ;;
-esac
-[ -d "$RELEASE_DIR" ] || die "release directory not found: $RELEASE_DIR"
-[ -f "$RELEASE_DIR/SHA256SUMS" ] || die "SHA256SUMS missing in $RELEASE_DIR (upload it together with the binaries)"
-[ -f "$RELEASE_DIR/install.sh" ] || die "install.sh missing in $RELEASE_DIR (upload it together with this script)"
-
+[ "$(uname -s)" = "Linux" ] || die "install-local.sh 仅支持 Linux"
 case "$COMPONENT" in
     server | node | agent) ;;
-    *) die "component must be server, node, or agent" ;;
+    *) die "组件必须是 server、node 或 agent" ;;
+esac
+[ -d "$RELEASE_DIR" ] || die "发行目录不存在: $RELEASE_DIR"
+[ -f "$RELEASE_DIR/SHA256SUMS" ] || die "$RELEASE_DIR 缺少 SHA256SUMS（请与二进制一起上传）"
+[ -f "$RELEASE_DIR/install.sh" ] || die "$RELEASE_DIR 缺少 install.sh（请与本脚本一起上传）"
+
+case "$COMPONENT" in
+    server)
+        [ -n "$FRPW_LICENSE" ] || die "此发行版为付费授权：请设置 FRPW_LICENSE 授权密钥，例如
+  sudo FRPW_LICENSE=FRPW-xxx... sh install-local.sh server
+请联系供应商购买授权。"
+        log "授权密钥: $(mask_license "$FRPW_LICENSE")"
+        log "正在校验离线发行包: Ed25519 验签通过后将显示客户名称、到期时间与最大安装数"
+        ;;
 esac
 
 ARCH="$(detect_arch)"
@@ -202,28 +234,33 @@ if [ "$COMPONENT" = "server" ]; then
     OPTIONAL="frpw-client-$FRPW_VERSION-linux-amd64 frpw-client-$FRPW_VERSION-linux-arm64 frpw-client-$FRPW_VERSION-windows-amd64.exe frpw-client-$FRPW_VERSION-darwin-amd64 frpw-client-$FRPW_VERSION-darwin-arm64 frpw-node-$FRPW_VERSION-linux-amd64 frpw-node-$FRPW_VERSION-linux-arm64"
 fi
 
-log "verifying release files in $RELEASE_DIR"
-[ -f "$RELEASE_DIR/$REQUIRED" ] || die "required binary missing: $RELEASE_DIR/$REQUIRED"
+log "校验发行文件: $RELEASE_DIR"
+[ -f "$RELEASE_DIR/$REQUIRED" ] || die "缺少必需的二进制文件: $RELEASE_DIR/$REQUIRED"
 
 EXPECTED="$(checksum_for_asset "$REQUIRED" "$RELEASE_DIR/SHA256SUMS")"
-[ -n "$EXPECTED" ] || die "SHA256SUMS has no entry for $REQUIRED"
+[ -n "$EXPECTED" ] || die "SHA256SUMS 中没有 $REQUIRED 的有效校验值"
 ACTUAL="$(sha256_file "$RELEASE_DIR/$REQUIRED")"
-[ "$ACTUAL" = "$EXPECTED" ] || die "checksum mismatch for $REQUIRED (file corrupted or tampered)"
-log "verified $REQUIRED"
+[ "$ACTUAL" = "$EXPECTED" ] || die "$REQUIRED 校验失败（文件损坏或被篡改）"
+log "SHA256 验证通过: $REQUIRED ($(human_size "$(file_size "$RELEASE_DIR/$REQUIRED")"))"
 
 MISSING_OPTIONAL=""
 for name in $OPTIONAL; do
     if [ -f "$RELEASE_DIR/$name" ]; then
         expected="$(checksum_for_asset "$name" "$RELEASE_DIR/SHA256SUMS")"
         actual="$(sha256_file "$RELEASE_DIR/$name")"
-        [ -n "$expected" ] && [ "$actual" = "$expected" ] || die "checksum mismatch for $name"
+        [ -n "$expected" ] && [ "$actual" = "$expected" ] || die "$name 校验失败（文件损坏或被篡改）"
+        log "SHA256 验证通过: $name ($(human_size "$(file_size "$RELEASE_DIR/$name")"))"
     else
         MISSING_OPTIONAL="$MISSING_OPTIONAL $name"
     fi
 done
 if [ -n "$MISSING_OPTIONAL" ]; then
-    printf '%s\n' "warning: optional catalog files not uploaded, managed client/node downloads will be limited:$MISSING_OPTIONAL" >&2
+    warn "可选目录文件未上传，托管客户端/节点下载将受限:$MISSING_OPTIONAL"
 fi
 
-log "installing FRPW $COMPONENT $FRPW_VERSION (offline mode)"
+case "$COMPONENT" in
+    server) verify_license ;;
+esac
+
+log "离线发行包校验完成，开始安装 FRPW $COMPONENT $FRPW_VERSION"
 FRPW_LICENSE_INFO_SHOWN=1 FRPW_LICENSE="$FRPW_LICENSE" FRPW_LOCAL_DIR="$RELEASE_DIR" FRPW_VERSION="$FRPW_VERSION" sh "$RELEASE_DIR/install.sh" "$COMPONENT"
