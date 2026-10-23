@@ -57,6 +57,8 @@ FRPW-xxxxxxxx~xxxxxxxx~xxxx~........
 | `FRPW_LICENSE_ENFORCEMENT` | `degrade` | `degrade`：过期/被吊销时仍启动但降级（新隧道上限 1 条、禁止新建订单）；`strict`：直接拒绝启动 |
 | `FRPW_REVOCATION_URL` | 本仓库 main 分支的 `revocations.json` | 签名吊销列表，服务端每 24 小时同步一次 |
 
+> `degrade` 只适用于已验签但过期/被吊销的密钥；密钥缺失、格式错误或签名不符时，服务端仍会拒绝启动。Agent、远程节点与客户端不读取这些变量。
+
 服务端启动时若密钥缺失或签名不符会直接退出，运行期每 6 小时重新验签。授权状态（`active` / `expiring` /
 `expired` / `revoked` / `missing` / `invalid`）、客户名、到期日、密钥指纹和当前策略可在管理后台的
 「授权与许可」面板查看，并可点击「重新校验」立即复验。请勿手工修改 `/etc/frpw/license.key` 或外传密钥。
